@@ -1,0 +1,10 @@
+{"task":"Fix typo in README","route":"DIRECT","tier":"T0","risk":"low"}
+{"task":"Rename getUser to fetchUser across the repo","route":"DIRECT","tier":"T0","risk":"low"}
+{"task":"Add CSV export to reports, matching the existing PDF export","route":"STANDARD","tier":"T1","risk":"low"}
+{"task":"Users report intermittent 401s after password reset","route":"HEAVY","tier":"T2","risk":"high"}
+{"task":"Refactor payments retry logic to exponential backoff","route":"HEAVY","tier":"T2","risk":"high"}
+{"task":"Build an audit log for all admin actions","route":"HEAVY","tier":"T2","risk":"high"}
+{"task":"Migrate 340 components from styled-components to Tailwind","route":"SWARM","tier":"T4","risk":"low"}
+{"task":"Upgrade Next.js 14→16 across the monorepo","route":"RALPH","tier":"T4","risk":"medium"}
+{"task":"Make the dashboard feel faster","route":"SPEC","tier":"any","risk":"low"}
+{"task":"Every Monday summarize new Sentry issues into a triage ticket","route":"CRON","tier":"T1","risk":"low"}
