@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# software-factory — terminal entrypoint for the harness.
+#
+# Resolves two roots and keeps them separate:
+#   SOFTWARE_FACTORY_HOME  where the ENGINE code lives (this checkout; follows
+#                         symlinks so the binary works from anywhere on PATH)
+#   AGENTIC_TARGET        the REPO the task runs in (your $PWD's git root)
+# State (routing log, tasks/) lives in the target; engine assets fall back to
+# HOME when the target hasn't been `init`ed.
+set -euo pipefail
+
+# --- resolve engine home even when invoked through a symlink on $PATH ---
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+: "${SOFTWARE_FACTORY_HOME:=$(cd -P "$(dirname "$SOURCE")/.." && pwd)}"
+
+# --- resolve the target repo from the current directory (NOT the engine) ---
+: "${AGENTIC_TARGET:=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd)}"
+export SOFTWARE_FACTORY_HOME AGENTIC_TARGET
+
+usage() {
+  cat <<'EOF'
+software-factory — route and run engineering tasks through the harness
+
+usage: software-factory <command> [args]
+
+setup:
+  install-user             install global skill + native runtime agent adapters
+  init   [dir]             vendor the versioned repo kit into a target repo
+                           (commit it so web/desktop sessions pick it up)
+  update [--to <ref>] [dir]  re-pin + refresh managed files to a release,
+                           leaving your state untouched (--to targets a ref)
+  status [dir]             show the repo's pinned version/ref vs the engine
+  version                  print the engine version
+
+run (operate on the current repo):
+  implement <spec>         launch the portable implement-spec workflow
+                           (--runtime claude|codex|opencode; --headless optional)
+  execute  <task>          classify, log, and carry out the task (safe routes
+                           auto-run; gated routes print next steps)
+  dispatch <task>          classify, log, and PRINT the next command (never runs)
+  triage   <task>          classify only → JSON {route,tier,risk}
+  review <plan> [range] [spec] [validation]  structured independent review
+  ralph                    run the capped fresh-context task loop (tasks/todo/)
+  pr-watch <PR>            synchronous CI/review triage for one PR (Codex/
+                           OpenCode fallback — Claude Code uses the pr-watch
+                           skill's live pr-intake agent instead)
+  report                   system-health summary from the routing log
+  eval                     route accuracy over eval/golden.jsonl
+  help                     this message
+
+env:
+  AGENTIC_EXECUTOR=claude|codex   which family runs `execute` (default: claude)
+  AGENTIC_RUNTIME=claude|codex|opencode  host for `implement` (default: claude)
+  SOFTWARE_FACTORY_HOME=<dir>      override engine location
+  AGENTIC_TARGET=<dir>            override the target repo
+  (models + caps live in $SOFTWARE_FACTORY_HOME/harness/loops.env)
+EOF
+}
+
+cmd="${1:-help}"; shift || true
+H="$SOFTWARE_FACTORY_HOME"
+case "$cmd" in
+  install-user)     exec "$H/harness/install-user.sh" "$@" ;;
+  init)             exec "$H/harness/init.sh" init "$@" ;;
+  update)           exec "$H/harness/init.sh" update "$@" ;;
+  status)           exec "$H/harness/status.sh" "$@" ;;
+  version)          cat "$H/VERSION" ;;
+  implement)        exec "$H/harness/implement.sh" "$@" ;;
+  execute)          exec "$H/harness/execute.sh" "$@" ;;
+  dispatch)         exec "$H/harness/dispatch.sh" "$@" ;;
+  triage|classify)  exec "$H/harness/triage.sh" "$@" ;;
+  review)           exec "$H/harness/review.sh" "$@" ;;
+  ralph)            exec "$H/harness/ralph.sh" "$@" ;;
+  pr-watch)         exec "$H/harness/pr-watch.sh" "$@" ;;
+  report)           exec "$H/eval/report.sh" "$@" ;;
+  eval)             exec "$H/eval/classify-eval.sh" "$@" ;;
+  -h|--help|help)   usage ;;
+  *) echo "unknown command: $cmd" >&2; echo >&2; usage >&2; exit 64 ;;
+esac

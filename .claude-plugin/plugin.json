@@ -1,0 +1,11 @@
+{
+  "name": "software-factory",
+  "version": "0.2.0",
+  "description": "Portable implement-spec workflow plus task routing, native read-only subagents, durable run state, risk gates, goal validation, capped loops, and evaluation.",
+  "author": {
+    "name": "aanojima",
+    "email": "aanojima@gmail.com"
+  },
+  "homepage": "https://github.com/aanojima/software-factory",
+  "keywords": ["agent", "orchestration", "routing", "harness"]
+}
