@@ -72,9 +72,9 @@ python3 -c 'import sys,tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$TARGET/
 mkdir -p "$TMP/home"
 HOME="$TMP/home" CODEX_HOME="$TMP/home/.codex" SOFTWARE_FACTORY_HOME="$ROOT" \
   "$ROOT/harness/install-user.sh" >/dev/null
-[[ -L "$TMP/home/.agents/skills/implement-spec" ]]
-[[ -L "$TMP/home/.agents/skills/stage-ticket" ]]
 [[ -L "$TMP/home/.claude/skills/implement-spec" ]]
+[[ ! -e "$TMP/home/.agents/skills/implement-spec" ]]
+[[ ! -e "$TMP/home/.agents/skills/stage-ticket" ]]
 [[ -L "$TMP/home/.claude/skills/stage-ticket" ]]
 [[ -L "$TMP/home/.claude/skills/route" ]]
 [[ -L "$TMP/home/.claude/skills/pr-watch" ]]

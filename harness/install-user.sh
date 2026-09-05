@@ -39,12 +39,14 @@ if command -v gh >/dev/null && [[ "${SOFTWARE_FACTORY_SYNC:-0}" == "1" ]]; then
   fi
 fi
 
-link_one "$SRC/skills/implement-spec" "$HOME/.agents/skills/implement-spec"
 link_one "$SRC/skills/implement-spec" "$HOME/.claude/skills/implement-spec"
-# stage-ticket is genuinely portable too (no PR, no Agent/SendMessage/Monitor
-# dependency) — same dual-link as implement-spec.
-link_one "$SRC/skills/stage-ticket" "$HOME/.agents/skills/stage-ticket"
 link_one "$SRC/skills/stage-ticket" "$HOME/.claude/skills/stage-ticket"
+# Not linked to ~/.agents/skills/: Codex now gets both skills through the
+# installed software-factory plugin (codex plugin add
+# software-factory@software-factory), and a personal-machine symlink there
+# duplicated it in Codex's own picker (same skill, two sources). Confirmed
+# OpenCode doesn't need that path either. If some other runtime later needs
+# skills from ~/.agents/skills/ specifically, re-add the link_one calls here.
 # Claude-Code-specific skills (use the Agent tool directly) — not portable to
 # Codex/OpenCode, so these only go to ~/.claude/skills, not ~/.agents/skills.
 link_one "$SRC/skills/route" "$HOME/.claude/skills/route"
@@ -92,6 +94,9 @@ cp "$TMP" "$CODEX_CONFIG"
 echo "✓ user installation complete"
 echo "  Claude: restart sessions; /implement-spec, /stage-ticket, /route, /pr-watch,"
 echo "          /implement-ticket, and the read-only agents are available."
-echo "  Codex: restart sessions to load the skills and registered roles."
+echo "  Codex: restart sessions to load the registered reviewer roles. For"
+echo "         \$implement-spec/\$stage-ticket and the other commands, install the"
+echo "         plugin once: codex plugin marketplace add aanojima/software-factory"
+echo "         then codex plugin add software-factory@software-factory."
 echo "  OpenCode: restart sessions; /implement-spec, /stage-ticket, and /route are available."
 echo "  If OpenCode reports a duplicate skill, set OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1."
