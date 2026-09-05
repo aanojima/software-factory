@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PR event triage classification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["route", "tier", "risk", "why"],
+  "properties": {
+    "route": {"enum": ["DIRECT", "STANDARD", "HEAVY", "SPEC", "CONTESTED"]},
+    "tier": {"enum": ["T0", "T1", "T2", "any"]},
+    "risk": {"enum": ["low", "medium", "high"]},
+    "why": {"type": "string", "minLength": 1, "maxLength": 200}
+  }
+}
