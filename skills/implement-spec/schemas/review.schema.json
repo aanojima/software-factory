@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Independent implementation review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewer", "approved", "blocking", "minor", "criteria_coverage"],
+  "properties": {
+    "reviewer": {"type": "string", "minLength": 1},
+    "approved": {"type": "boolean"},
+    "blocking": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary", "evidence", "required_fix"],
+        "properties": {
+          "summary": {"type": "string", "minLength": 1},
+          "evidence": {"type": "string", "minLength": 1},
+          "required_fix": {"type": "string", "minLength": 1},
+          "criterion_ids": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "minor": {"type": "array", "items": {"type": "string"}},
+    "criteria_coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "evidence"],
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"enum": ["satisfied", "not_satisfied", "unverified"]},
+          "evidence": {"type": "string"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Spec"
+  short_description: "Execute an approved spec safely"
+  default_prompt: "Use $implement-spec to implement the referenced approved specification through readiness, exploration, planning, implementation, validation, review, and goal verification."

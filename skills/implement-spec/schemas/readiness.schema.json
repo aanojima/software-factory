@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Implementation readiness",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "goal", "acceptance_criteria", "constraints", "validation_strategy", "intent_ambiguities", "blocking_questions"],
+  "properties": {
+    "status": {"enum": ["ready", "needs_clarification", "rejected"]},
+    "goal": {"type": "string", "minLength": 1},
+    "acceptance_criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "constraints": {"type": "array", "items": {"type": "string"}},
+    "validation_strategy": {"type": "array", "items": {"type": "string"}},
+    "intent_ambiguities": {"type": "array", "items": {"type": "string"}},
+    "blocking_questions": {"type": "array", "items": {"type": "string"}}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "ready"}}},
+      "then": {
+        "properties": {
+          "acceptance_criteria": {"minItems": 1},
+          "validation_strategy": {"minItems": 1},
+          "intent_ambiguities": {"maxItems": 0},
+          "blocking_questions": {"maxItems": 0}
+        }
+      }
+    }
+  ]
+}
