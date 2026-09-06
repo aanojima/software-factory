@@ -10,6 +10,14 @@ for this, so the routing rules are embedded here).
 
 Task: `$ARGUMENTS`
 
+Read `.opencode/software-factory/loops.env` and enforce its named caps.
+The bundled `.opencode/agents/implementation-worker.md` is the only writer for
+implementation and repair turns. Pass it the complete assignment, explicit
+allowed paths, focused check, and literal cap/model values from
+`.opencode/software-factory/loops.env`; the `build` host remains
+orchestrator and may write directly only for a genuinely trivial DIRECT change
+or when native delegation is unavailable, stating why.
+
 If the task explicitly identifies an existing authoritative specification to
 implement, invoke `$implement-spec` and follow that durable workflow instead of
 the generic workstreams below.
@@ -51,6 +59,10 @@ external CLI only when the user explicitly requests mixed Claude + Codex
 review. A native launch failure stops or retries within the relevant cap; it
 never silently changes providers.
 
+Every implementation review assignment gives the reviewer exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Reviewers inspect only those inputs; they
+never edit or run tests, builds, linters, validators, or other verification
+commands.
+
 Every route below that reaches implementation runs the same core: implement
 → run the same test command CI itself runs (cap `TEST_LOOP_CAP`) → an
 advisory pass (`coderabbit` if available + `ponytail-review`, cheap,
@@ -60,18 +72,22 @@ differs by route:
 - DIRECT   → implement, core, commit to a branch (never main). No blocking
              panel — tests are the gate.
 - STANDARD → short plan (delegate exploration to `repo-explorer` first if the
-             plan depends on unknowns) → implement, core → `conformance-reviewer`
+             plan depends on unknowns) → dispatch exactly one
+             `implementation-worker` with the complete assignment → implement,
+             core → `conformance-reviewer`
              blocking (cap `REVIEW_LOOP_CAP`, capped loop back to implement) → PR.
 - HEAVY    → delegate exploration to `repo-explorer` → grill to a crisp spec →
              plan at high effort (cap `PLAN_LOOP_CAP_T2`) → fresh read-only
-             native plan critic → STOP for human approval → implement, core →
+             native plan critic → STOP for human approval → dispatch exactly
+             one `implementation-worker` → implement, core →
              `conformance-reviewer` plus
              `security-reviewer`/`adversarial-reviewer` as applicable, blocking
              (cap `REVIEW_LOOP_CAP_T2`; mandatory if any model in the loop is
              Critical-tier for cyber capability — see risk-policy.md) → PR →
              human signs + merges.
-- RALPH    → write `tasks/prd.md` + one spec per file in `tasks/todo/`, then run
-             the capped loop (`software-factory ralph`).
+- RALPH    → write `tasks/prd.md` + one spec per file in `tasks/todo/`, then
+             process one file at a time with a fresh native worker, one writer
+             at a time. Stop after 25 items or two identical failures.
 - SWARM    → decompose into ≤5 independent scopes; run each in its own worktree.
 - CRON     → draft a Routine/Action with an explicit done-criterion. No self-loop.
 - SPEC     → grind to a testable acceptance criterion, then re-route the PRD.

@@ -1,9 +1,14 @@
 ---
 name: stage-ticket
-description: Resolve a ticket (free text, a Linear key, or a Linear URL), classify it, implement, verify, and get it to a tested, reviewed-enough commit pushed to a branch — then stop. No PR opens, nothing watches CI afterward; that's a separate, deliberate step you take when ready. Portable — works the same in Claude Code, Codex, and OpenCode. Not for RALPH/SWARM/CRON/SPEC-shaped work — those still need /route directly.
+description: Resolve a ticket (free text, a Linear key, or a Linear URL), classify it, implement, verify, and get it to a tested, reviewed-enough commit pushed to a branch — then stop. No PR opens, nothing watches CI afterward; that's a separate, deliberate step you take when ready. Portable — works the same in Claude Code, Codex, and OpenCode. Not for RALPH/SWARM/CRON/SPEC-shaped work — those still need the route skill directly.
 ---
 
 # /stage-ticket <ticket> — ticket to a staged commit, nothing further
+
+Resolve one `CAPS_SOURCE`: `../../harness/loops.env` relative to this `SKILL.md`
+for Claude/Codex plugin hosts, or `.opencode/software-factory/loops.env` when
+copied to `.agents/skills/` for OpenCode. Read that source once before dispatching
+a role and pass its exact relevant cap and model values in every assignment.
 
 Everything `implement-ticket` does, minus opening the PR and everything
 after it. Use this when the code should be ready and sitting on a branch,
@@ -33,25 +38,28 @@ Produce `{route, tier, risk, why}`:
 - **RALPH / SWARM / CRON / SPEC** — stop here and report instead of forcing
   a single-branch shape onto them. These are multi-PR, parallel, recurring,
   or not-yet-measurable; hand them to the full routing methodology instead
-  (`/route` in Claude Code, `/execute` in Codex).
+  (`/software-factory:route` in Claude Code, `$route` in Codex).
 
 State the decision in one line before touching anything:
 `route=<ROUTE> tier=<TIER> risk=<RISK> — <why>`.
 
 ## 2 · Follow the route up to (not through) a PR
 
-- **DIRECT**: implement directly on a branch (never main). No blocking
-  panel — tests are the gate.
-- **STANDARD**: if the plan depends on unknowns, delegate exploration to
-  `repo-explorer` first rather than guessing. Draft a one-line plan,
-  implement on the cheap executor.
-- **HEAVY**: delegate exploration to `repo-explorer`. Grill the task to a
+- **DIRECT**: implement directly on a branch (never main). This is the
+  genuinely trivial host-write exception; state that reason. No blocking panel
+  — tests are the gate.
+- **STANDARD**: if the plan depends on unknowns, delegate exploration to a
+  native read-only explorer first rather than guessing. Draft a one-line plan,
+  then dispatch exactly one implementation worker with the complete plan,
+  allowed paths, focused check, and literal cap/model values.
+- **HEAVY**: delegate exploration to a native read-only explorer. Grill the task to a
   crisp spec, plan at high effort, then ask a fresh, read-only native subagent
   to review the plan against the task/spec and exploration evidence. In Codex
   use GPT-6 Astra at high effort; in Claude use a high-effort native plan
   critic. The plan review returns approval or concrete blockers and does not
-  require an implementation diff. Honor `PLAN_LOOP_CAP_T2`, then **stop for
-  human plan approval** before implementing.
+  require an implementation diff. It inspects only the supplied artifacts and
+  does not run verification commands. Honor `PLAN_LOOP_CAP_T2`, then **stop for
+  human plan approval** before dispatching the implementation worker.
 
 Use native subagents from the current host throughout this workflow. Use an
 external CLI bridge only when the user explicitly requests mixed Claude +
@@ -60,19 +68,31 @@ it never silently changes providers.
 
 Then, for every route that reaches this point, run the same core in order:
 
-1. Implement the fix or feature (one writer).
+1. Dispatch exactly one implementation worker for the fix or feature. Claude
+   uses the plugin-bundled `implementation-worker`, Codex uses its built-in
+   worker with the literal `CODEX_EXEC_MODEL` from the resolved `CAPS_SOURCE`,
+   and optional OpenCode uses its bundled repo-local worker. The assignment
+   must include the approved plan, explicit allowed paths, acceptance criteria,
+   focused verification command, and literal `TEST_LOOP_CAP=<value>` and model
+   values. The worker may read, edit allowed paths, and run focused checks, but
+   may not redesign, delegate, commit, push, publish, or open a PR. Repairs
+   return to the same healthy worker, one writer at a time. The host writes only
+   for a genuinely trivial DIRECT change or unavailable native delegation and
+   states why.
 2. Discover and run the same test command CI itself runs for this repo —
    check the relevant workflow file or the repo's existing test
    scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
-   (`harness/loops.env`).
-3. Run the advisory pass — `coderabbit` (if available) and
-   `ponytail-review`. Cheap, non-blocking, never loops.
+   from the resolved `CAPS_SOURCE`.
+3. After final verification and freeze, follow the required advisory pass in
+   `../implement-spec/references/review-contract.md` before the blocking
+   panel. It is inspection-only, cheap, non-blocking, and never loops; that
+   shared contract owns the Ponytail and CodeRabbit invocation details and
+   visible skip handling.
 4. Blocking panel by tier, with a capped loop back to step 1 on any blocking
    finding:
    - DIRECT: none — tests are the gate.
-   - STANDARD: `conformance-reviewer` (cap `REVIEW_LOOP_CAP`).
-   - HEAVY: `conformance-reviewer` + `security-reviewer` and/or
-     `adversarial-reviewer`, whichever apply to this change (cap
+   - STANDARD: the conformance lens (cap `REVIEW_LOOP_CAP`).
+   - HEAVY: conformance plus security and/or adversarial lenses, whichever apply to this change (cap
      `REVIEW_LOOP_CAP_T2`) — mandatory if any model in the loop is rated
      Critical-tier for cyber capability (see `risk-policy.md`).
 5. Commit to the branch and push it to `origin`. **Stop here.** Push, not a

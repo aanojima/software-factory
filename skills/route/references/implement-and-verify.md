@@ -9,16 +9,38 @@ gate that follows this core differs by context.
 Every agent in this core is native to the current host unless the user
 explicitly requests mixed Claude + Codex review.
 
+Every implementation review assignment gives the reviewer exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Reviewers inspect only those inputs and do
+not run tests, builds, linters, validators, or other verification commands.
+
+The owning plugin skill must resolve `../../harness/loops.env` relative to its
+own `SKILL.md` before dispatching. Pass the exact values relevant to the turn
+in each assignment, including `TEST_LOOP_CAP` and the selected executor model;
+Codex implementation workers receive the literal `CODEX_EXEC_MODEL` value.
+The target repository is not a source of plugin configuration.
+
 ## Core (always, in order)
 
-1. Implement the fix or feature.
+1. Except for DIRECT, the host dispatches exactly one implementation worker
+   with the complete specification or approved plan, explicit allowed paths,
+   acceptance criteria, focused verification command, and resolved cap/model
+   values. STANDARD and HEAVY always retain exactly-one-worker semantics.
+   DIRECT uses the host-write exception documented in `../SKILL.md` for a
+   genuinely trivial change, with the reason recorded.
+   Claude uses the plugin-bundled `implementation-worker`, Codex uses its
+   built-in worker subagent with `CODEX_EXEC_MODEL`, and optional OpenCode uses
+   its bundled repo-local worker. The worker may read, edit allowed paths, and
+   run focused verification, but may not redesign, delegate, commit, push,
+   publish, or open a PR. Repairs return to the same healthy worker; only one
+   writer is active. The host writes directly only for a genuinely trivial
+   DIRECT change or when native delegation is unavailable, and records why.
 2. Discover and run the same test command CI itself runs for this repo —
    check the relevant workflow file or the repo's existing test
    scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
    (`harness/loops.env`).
-3. Run the advisory pass (`review-panel.md`'s advisory section —
-   `coderabbit` + `ponytail-review`). Cheap, non-blocking, never loops —
-   catches an obvious mistake before it reaches CI or a human reviewer.
+3. After final verification and freeze, run the required advisory pass in
+   `../../implement-spec/references/review-contract.md` before any blocking
+   panel. It is inspection-only, cheap, non-blocking, and never loops; keep
+   the Ponytail and CodeRabbit invocation details in that shared contract.
 
 ## Then the gate — depends on context
 

@@ -1,5 +1,6 @@
 {
   "name": "software-factory",
+  "description": "Guarded engineering delivery workflows for Claude Code and Codex.",
   "owner": {
     "name": "aanojima"
   },
@@ -8,7 +9,7 @@
       "name": "software-factory",
       "source": "./",
       "description": "Portable implement-spec workflow, native subagents, durable state, guarded loops, routing, and evaluation.",
-      "version": "0.2.0"
+      "version": "0.2.1"
     }
   ]
 }

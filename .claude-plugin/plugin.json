@@ -1,6 +1,6 @@
 {
   "name": "software-factory",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Portable implement-spec workflow plus task routing, native read-only subagents, durable run state, risk gates, goal validation, capped loops, and evaluation.",
   "author": {
     "name": "aanojima",

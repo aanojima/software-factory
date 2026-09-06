@@ -3,7 +3,7 @@
 A software factory — a portable specification-execution workflow
 plus the routing layer between you and coding CLIs. It owns seven things:
 
-- **implement-spec** — approved spec → exploration → plan → one writer → evidence → review
+- **implement-spec** — approved spec → exploration → plan → implementation worker → evidence → review
 - **triage** — Haiku-priced classification of each task
 - **dispatch** — route → workstream + model ladder
 - **loop enforcement** — caps, conformance exits, breakers
@@ -22,20 +22,19 @@ you            specs in · judgment at the gates
 ```
 
 The authoritative implementation workflow is a portable Agent Skill. This repo
-also packages a **Claude Code plugin**, Codex/OpenCode adapters, a terminal
-launcher, and its own **git marketplace**. See
+packages one marketplace plugin for **Claude Code and Codex**, an optional
+repo-local OpenCode adapter, a terminal launcher, and its own **git
+marketplace**. See
 [Distribution](#distribution--team--web--desktop).
 
 ## Implement an approved spec
 
 ```bash
-# One-time personal installation across local repositories
-software-factory install-user
-
-# Start the workflow in a selected host runtime
-software-factory implement docs/specs/refunds.md --runtime claude
-software-factory implement docs/specs/refunds.md --runtime codex
-software-factory implement docs/specs/refunds.md --runtime opencode
+# One-time plugin installation for each runtime you use
+claude plugin marketplace add aanojima/software-factory
+claude plugin install --scope user software-factory@software-factory
+codex plugin marketplace add aanojima/software-factory
+codex plugin add software-factory@software-factory
 ```
 
 Inside an existing session:
@@ -43,14 +42,16 @@ Inside an existing session:
 ```text
 /software-factory:implement-spec docs/specs/refunds.md   # Claude Code
 $implement-spec Implement docs/specs/refunds.md         # Codex
-/implement-spec docs/specs/refunds.md                    # OpenCode
+/implement-spec docs/specs/refunds.md                    # OpenCode, after init --opencode
 ```
 
-The current host session is the technical lead and default sole writer. It
-launches read-only native explorers, synthesizes their findings, applies a
-second risk gate, implements, validates every acceptance criterion, and obtains
-independent read-only review. Product requirements remain owned by the supplied
-spec; technical uncertainty is resolved through repository exploration.
+The current host session is the technical lead and workflow owner. It launches
+read-only native explorers, synthesizes their findings, applies a second risk
+gate, dispatches exactly one implementation worker for writes and repairs, and
+obtains independent read-only review. Claude uses the plugin-bundled worker,
+Codex its built-in worker, and OpenCode its bundled repo-local worker. Product
+requirements remain owned by the supplied spec; technical uncertainty is
+resolved through repository exploration.
 
 ## Layout
 
@@ -58,8 +59,10 @@ spec; technical uncertainty is resolved through repository exploration.
 ├── .claude-plugin/
 │   ├── plugin.json               plugin manifest (name/version; auto-discovers below)
 │   └── marketplace.json          marketplace manifest (this repo == its marketplace)
+├── .codex-plugin/plugin.json     Codex-native manifest for the same skills
 ├── commands/
-│   └── execute.md                → /software-factory:execute (Claude Code)
+│   ├── execute.md                → /software-factory:execute (Claude Code)
+│   └── setup.md                  → /software-factory:setup
 ├── agents/                       Claude plugin explorers + reviewers
 ├── skills/route/
 │   ├── SKILL.md                  the route skill / routing methodology
@@ -69,37 +72,36 @@ spec; technical uncertainty is resolved through repository exploration.
 │   ├── references/               phase contracts loaded as needed
 │   ├── schemas/                  readiness, validation, review contracts
 │   └── scripts/run_state.py      durable state + completion gates
-├── adapters/{codex,opencode}/    native agent and command definitions
+├── adapters/opencode/            optional OpenCode agent and command definitions
 ├── bin/
-│   └── software-factory           CLI — on PATH via the plugin, or symlink it
+│   └── software-factory           CLI for checkout-based automation
 ├── harness/
 │   ├── loops.env                 caps + model tiers (single source of truth)
 │   ├── triage.sh                 Haiku-priced classification
 │   ├── implement.sh              thin runtime launcher
-│   ├── install-user.sh           global local-machine installation
+│   ├── install-user.sh           native Claude/Codex plugin installer + migration
 │   ├── execute.sh                classify + run the safe routes / gate the rest
 │   ├── dispatch.sh               route, log, print the next command (never auto-runs)
 │   ├── review.sh                 explicit external Codex review bridge
 │   ├── ralph.sh                  capped fresh-context loop w/ identical-failure breaker
-│   └── init.sh                   wire a consumer repo to the plugin + Codex
-├── .codex/prompts/               Codex execute + implement-spec entrypoints
+│   └── init.sh                   wire a consumer repo to the plugin
 ├── templates/routing-log.md      empty log seeded into consumer repos
 ├── eval/{golden.jsonl,classify-eval.sh,report.sh}
 ├── VERSION · CLAUDE.md · AGENTS.md
 ```
 
-**Engine vs. repo kit.** The engine (`bin/`, `harness/`, `eval/`, `skills/`,
-`agents/`, `adapters/`, `commands/`) is shared once. The per-repo kit
-(`.claude/settings.json`, `.codex/prompts/`, `CLAUDE.md`/`AGENTS.md` blocks,
-`.agents/skills/`, runtime agents, `tasks/`, golden seed) is stamped into each consumer repo by
-`software-factory init` and committed there. The CLI keeps these separate via
-`SOFTWARE_FACTORY_HOME` (engine) and `AGENTIC_TARGET` (the repo the task runs in).
+**Engine vs. repo kit.** The plugin carries the reusable skills, commands, and
+Claude agents. The per-repo kit contains plugin settings, `CLAUDE.md`/`AGENTS.md`
+rules, tasks, and the golden seed. `--opencode` additionally vendors OpenCode's
+skills, commands, agents, and loop caps because its plugin format is unrelated. The CLI
+keeps engine and target state separate via `SOFTWARE_FACTORY_HOME` and
+`AGENTIC_TARGET`.
 
 ## Usage — three modes
 
 - **Spec execution.** `software-factory implement <spec> --runtime <host>` starts
   one host session, creates a resumable run directory, and lets the portable
-  skill coordinate native read-only workers and one writer.
+  skill coordinate read-only exploration/review and one implementation worker.
 - **Mode A (inline, day one).** In a Claude Code session, type
   `/software-factory:execute <task>` (or `/software-factory:route <task>` to just
   classify). The skill classifies, announces the route, and follows it.
@@ -107,7 +109,7 @@ spec; technical uncertainty is resolved through repository exploration.
   prints the classification JSON, appends the log line, and prints the exact
   next command for you (or a wrapper) to run. Print-only is the safety boundary.
 - **Mode C (HEAVY walk-through).** Human gates in force: grill → plan at high
-  effort → native plan critic → **human approves** → one writer implements →
+  effort → native plan critic → **human approves** → implementation worker →
   test loop → native review panel → goal-gate the diff → PR → CI →
   **human merges**.
 
@@ -144,7 +146,7 @@ flowchart TD
     A[Ticket] --> B
     subgraph CORE1["implement-and-verify.md — shared core"]
         direction TB
-        B["Implement<br/>single writer"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
+        B["Implement<br/>implementation-worker"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
         C --> D[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
     D --> E(("Open PR"))
@@ -171,7 +173,7 @@ flowchart TD
     classDef terminal fill:#1A2230,stroke:#1A2230,color:#fff;
     classDef core fill:transparent,stroke:#7B4B94,color:#7B4B94,stroke-width:2.5px;
     A[Ticket] --> B0["Classify<br/>route=STANDARD · T1"]
-    B0 -.->|if plan has unknowns| X["repo-explorer"]
+    B0 -.->|if plan has unknowns| X["read-only explorer"]
     X -.-> P
     B0 --> P["Plan<br/>one-liner"]
     P --> B
@@ -180,7 +182,7 @@ flowchart TD
         B["Implement<br/>EXEC_MODEL=claude-sonnet-5"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
         C --> D[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
-    D --> F{{"Blocking panel · T1<br/>conformance-reviewer"}}
+    D --> F{{"Blocking panel · T1<br/>conformance lens"}}
     F -->|blocking finding, cap REVIEW_LOOP_CAP=2| B
     F --> G(("Open PR"))
     G --> H["pr-watch → pr-intake<br/>haiku"]
@@ -192,7 +194,7 @@ flowchart TD
 ```
 
 Exploration is a side branch, not a required stop. Only the blocking lens
-(`conformance-reviewer`) can trigger the capped loop back into the shared
+(the conformance lens) can trigger the capped loop back into the shared
 core; the advisory lens inside it never does.
 
 </details>
@@ -208,14 +210,14 @@ flowchart TD
     classDef terminal fill:#1A2230,stroke:#1A2230,color:#fff;
     classDef core fill:transparent,stroke:#7B4B94,color:#7B4B94,stroke-width:2.5px;
     A[Ticket] --> B0["Classify<br/>route=HEAVY · risk=high"]
-    B0 -.-> X["repo-explorer"]
+    B0 -.-> X["read-only explorer"]
     X -.-> P
     B0 --> P["Plan<br/>high effort + native critic"]
     P --> D0{"Human approves<br/>plan + risk summary"}
     D0 --> B
     subgraph CORE3["implement-and-verify.md — shared core"]
         direction TB
-        B["Implement<br/>one writer, only after approval"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
+        B["Implement<br/>implementation-worker, only after approval"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
         C --> Dadv[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
     Dadv --> G{{"Blocking panel · T2<br/>conformance + security + adversarial"}}
@@ -358,7 +360,7 @@ flowchart TD
     C -->|STANDARD| D2
     C -->|CONTESTED| D3c["Reply on thread<br/>name the contradiction — no dispatch"]
     C -->|SPEC| D3["Reply on thread<br/>ask for a concrete ask"]
-    C -->|"HEAVY / risk=high"| D4["Spawn conformance-reviewer +<br/>matching *-reviewer agents — read-only"]
+    C -->|"HEAVY / risk=high"| D4["Spawn conformance +<br/>matching risk lenses — read-only"]
     D4 --> E["SendMessage → main<br/>finding + every assessment<br/>mark awaiting_decision"]
     E -.->|"① decision needed"| M["Main session ↔ you"]
     M -.->|"② decision: apply"| D2
@@ -396,54 +398,62 @@ difference is only who made the call, `pr-intake` itself or you.
 
 ## Distribution — team · web · desktop
 
-The harness reaches every surface by committing a small kit into each repo. Run
-this once per target repo, from its root:
+Install the shared plugin once for each local user:
 
 ```bash
-software-factory init            # wires the plugin + Codex + seeds state
-git add -A && git commit -m "Add software-factory"   # web/desktop read committed files
+claude plugin marketplace add aanojima/software-factory
+claude plugin install --scope user software-factory@software-factory
+codex plugin marketplace add aanojima/software-factory
+codex plugin add software-factory@software-factory
 ```
 
-`init` writes:
-- `.claude/settings.json` → registers this repo as a marketplace
-  (`extraKnownMarketplaces`) and enables the plugin (`enabledPlugins`). Committed,
-  so **Claude Code CLI, web, and desktop** all install it at session start
-  (needs network to reach the marketplace repo + repo trust).
-- `.codex/prompts/` + an `AGENTS.md` block → committed **Codex** entrypoints
-  and a portable fallback independent of plugin installation.
-- `.agents/skills/implement-spec/` → portable skill used by Codex and OpenCode.
-- `.codex/agents/` + managed `.codex/config.toml` registrations → native
-  read-only Codex roles.
-- `.opencode/{commands,agents}/` → native OpenCode command and roles.
-- `CLAUDE.md` block, `tasks/{todo,done}/`, an `eval/golden.jsonl` seed, and a
-  `.claude/.software-factory-version` marker.
-- `.gitignore` entry for local `.agent-runs/` execution evidence.
+`./bin/software-factory install-user` runs those native commands and removes
+legacy Software Factory home-directory links and Codex checkout registrations.
+It does not leave a dependency on this checkout.
 
-**Install scopes** (Claude Code plugins): the committed `.claude/settings.json`
-is **project (shared)** scope — the whole team gets it. For personal use you can
-also `/plugin marketplace add aanojima/software-factory` then `/plugin install
-software-factory@software-factory` at **user** scope (`~/.claude`, CLI-only) or
-**project-local** scope (`.claude/settings.local.json`, gitignored).
+Then configure and commit the small project kit from an installed plugin:
 
-**Versioning & updates.** `init`/`update` pin the marketplace `ref`. The default
-is **`main`** (safe until the first release tag is pushed); switch the default in
-`harness/init.sh` to `v0.2.0` once that tag exists, or pin per-repo with
-`software-factory update --to v0.2.0`. A repo's pinned version lives in
+```text
+/software-factory:setup init      # Claude Code
+$factory-setup init               # Codex
+```
+
+```bash
+git add -A && git commit -m "Add software-factory"
+```
+
+`init` writes `.claude/settings.json` to enable the marketplace plugin for the
+project, managed `CLAUDE.md`/`AGENTS.md` rules, state seeds, a version marker,
+and the `.agent-runs/` gitignore entry. Codex loads the workflow and built-in
+native subagents through the installed plugin; it needs no copied prompts,
+skills, agent profiles, or checkout references.
+
+OpenCode is optional and uses a different plugin system. Pass `--opencode` to
+the setup command from Claude or Codex to add its repo-local skills, commands,
+and agents without creating home-directory links.
+
+The committed `.claude/settings.json` gives Claude Code a shared project-scope
+installation. Codex installs the same marketplace package at user scope. In a
+new Codex session, use `$route`, `$implement-spec`, `$stage-ticket`,
+`$implement-ticket`, or `$pr-watch`.
+
+**Versioning & updates.** Setup pins the marketplace `ref`. The default
+is `main`; after a release tag exists, pin a repo with
+`$factory-setup update --to v0.2.1` (Codex) or the equivalent namespaced Claude
+command. A repo's pinned version lives in
 `.claude/.software-factory-version`.
 
-```bash
-software-factory status            # show this repo's pinned version/ref vs the engine
-software-factory update            # re-pin to the engine's default release + refresh managed files
-software-factory update --to v0.2.0   # roll this repo to a specific release
+```text
+$factory-setup status
+$factory-setup update
+$factory-setup update --to v0.2.1
 ```
 
-`update` re-pins `.claude/settings.json`, refreshes the Codex prompt and the
-`CLAUDE.md`/`AGENTS.md` blocks, and reports the `version`/`ref` transition —
-**state (log, tasks, golden) is left untouched**. Committing the changed
-`settings.json` makes Claude Code re-install the plugin at the new ref on the
-next session (CLI + web + desktop). Cutting a release: tag the repo (`git tag
-vX.Y.Z`), bump `VERSION` + the default ref in `harness/init.sh`, then run
-`software-factory update` in each consumer repo (or `--to vX.Y.Z`). Pin a fork
+The update action re-pins `.claude/settings.json`, refreshes the managed project rules,
+removes the old vendored Codex kit, and reports the version/ref transition.
+State (log, tasks, golden) is left untouched. Use each runtime's native plugin
+update command to refresh the user-scoped plugin. Cutting a release: tag the repo, bump
+`VERSION` and both plugin manifests, then update each consumer repo. Pin a fork
 with `AGENTIC_MARKETPLACE_REPO=you/your-fork`.
 
 ## Invoking the harness
@@ -452,22 +462,20 @@ with `AGENTIC_MARKETPLACE_REPO=you/your-fork`.
 
 ```
 /software-factory:execute  add CSV export to reports, matching the PDF export   # Claude Code
-/execute                  add CSV export to reports                            # Codex
+$route                    add CSV export to reports                            # Codex
 ```
 
 Claude Code plugin commands are **namespaced** — it's `/software-factory:execute`
 (and `/software-factory:route`), not a bare `/execute`. Rename the plugin in
 `.claude-plugin/plugin.json` to shorten the prefix (e.g. `ah` → `/ah:execute`).
 
-**2 · Terminal binary** — shipped on PATH by the plugin; or symlink for dev:
+**2 · Terminal binary** — optional checkout-based automation:
 
 ```bash
-ln -sf "$PWD/bin/software-factory" /usr/local/bin/software-factory   # dev checkout only
-software-factory execute "add CSV export to reports"   # runs on the CURRENT repo
-software-factory implement docs/spec.md --runtime codex # approved-spec workflow
-software-factory dispatch "…"   # classify + print next step, never runs
-software-factory triage "…"     # JSON only
-software-factory report | eval | review <plan> | ralph
+./bin/software-factory execute "add CSV export to reports"
+./bin/software-factory implement docs/spec.md --runtime codex
+./bin/software-factory dispatch "…"
+./bin/software-factory triage "…"
 ```
 
 `execute` auto-runs the safe routes (DIRECT, STANDARD) and **stops with guidance**
@@ -480,7 +488,7 @@ the classifier, executor, and native-agent family with
 
 ```bash
 claude -p "/software-factory:execute add CSV export to reports"   # VERIFY: slash expansion in -p
-codex --enable multi_agent exec "$(cat .codex/prompts/execute.md)" # substitute the task for $ARGUMENTS
+codex exec '$route add CSV export to reports'
 ```
 
 For scripted/unattended use prefer the binary — it enforces the risk gate before
@@ -502,14 +510,8 @@ existing run. Local state is structured as:
 ```
 
 The launcher does not orchestrate individual phases. Claude Code, Codex, or
-OpenCode remains the host orchestrator, so the same workflow can run inside an
-existing desktop/terminal session. Commit the vendored repo kit for remote or
-cloud environments that cannot read machine-global skills.
-
-`install-user` places the common skill in both Claude and Agent Skills discovery
-locations. Because OpenCode reads both, set
-`OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` if your OpenCode version reports a
-duplicate `implement-spec` skill; it will continue using the `.agents` copy.
+OpenCode remains the host orchestrator. Plugin users do not need the terminal
+launcher or a source checkout after installation.
 
 ## Before the first unattended run
 

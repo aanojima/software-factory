@@ -5,26 +5,30 @@ classifies each task and runs it through the right workstream. Claude Code reads
 `CLAUDE.md`; Codex reads this file. Keep the two in sync.
 
 ## Project rules (identical to CLAUDE.md)
-1. One task per conversation. Route new tasks through `/execute` (or `/route`).
+1. One task per conversation. Route new tasks through
+   `/software-factory:execute` (Claude) or `$route` (Codex).
 2. Never edit files under `tasks/done/` or `eval/golden.jsonl`.
 3. Never modify test files to make tests pass.
 4. All merges go through PR + CI. Never push to main.
 5. When a loop hits its cap, stop and report — do not improvise past it.
-6. For an authoritative specification, use `/software-factory:implement-spec`.
-   The host session owns the workflow and exactly one writer; explorers and
-   reviewers remain read-only.
+6. For an authoritative specification, use `/software-factory:implement-spec`
+   (Claude) or `$implement-spec` (Codex).
+   The host session owns the workflow, plan, risk, gates, integration, and
+   final response. Exactly one implementation-worker owns worktree writes for
+   implementation and repairs; explorers and reviewers remain read-only.
+   The host writes directly only for a genuinely trivial DIRECT change or
+   unavailable native delegation, and states why.
 7. Use native subagents from the current host by default. Use an external CLI
    bridge only when the user explicitly requests mixed Claude + Codex review.
 
 ## Running a task
-- In a Codex session, type `/execute <task>` (self-contained prompt in
-  `.codex/prompts/execute.md`) — or just tell me to "execute" the task.
+- In a Codex session, type `$route <task>` or just tell me to execute the task.
 - For an authoritative specification, use `$implement-spec Implement <spec>` or
   `software-factory implement <spec> --runtime codex`. The host session owns the
-  workflow and exactly one writer; explorers and reviewers stay read-only.
-- The methodology (classify → announce → log → follow the route) is embedded in
-  that prompt. In Claude Code it's the `route` skill and `commands/execute.md`,
-  shipped by the plugin. Caps and model tiers are in `harness/loops.env`.
+  workflow; exactly one implementation-worker owns writes and repairs, while
+  explorers and reviewers stay read-only.
+- The methodology (classify → announce → log → follow the route) is the `route`
+  skill shipped by the plugin. Caps and model tiers are in `harness/loops.env`.
 
 ## Gates
 - **HEAVY** or **risk=high** → produce the plan, obtain independent native
