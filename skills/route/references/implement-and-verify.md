@@ -37,9 +37,10 @@ The target repository is not a source of plugin configuration.
    check the relevant workflow file or the repo's existing test
    scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
    (`harness/loops.env`).
-3. Run the advisory pass (`review-panel.md`'s advisory section —
-   `coderabbit` + `ponytail-review`). Cheap, non-blocking, never loops —
-   catches an obvious mistake before it reaches CI or a human reviewer.
+3. After final verification and freeze, run the required advisory pass in
+   `../../implement-spec/references/review-contract.md` before any blocking
+   panel. It is inspection-only, cheap, non-blocking, and never loops; keep
+   the Ponytail and CodeRabbit invocation details in that shared contract.
 
 ## Then the gate — depends on context
 

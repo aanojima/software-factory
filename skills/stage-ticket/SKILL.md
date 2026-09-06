@@ -83,8 +83,11 @@ Then, for every route that reaches this point, run the same core in order:
    check the relevant workflow file or the repo's existing test
    scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
    from the resolved `CAPS_SOURCE`.
-3. Run the advisory pass — `coderabbit` (if available) and
-   `ponytail-review`. Cheap, non-blocking, never loops.
+3. After final verification and freeze, follow the required advisory pass in
+   `../implement-spec/references/review-contract.md` before the blocking
+   panel. It is inspection-only, cheap, non-blocking, and never loops; that
+   shared contract owns the Ponytail and CodeRabbit invocation details and
+   visible skip handling.
 4. Blocking panel by tier, with a capped loop back to step 1 on any blocking
    finding:
    - DIRECT: none — tests are the gate.

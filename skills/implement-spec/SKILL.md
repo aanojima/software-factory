@@ -105,10 +105,12 @@ Passing tests is necessary but not sufficient. For every acceptance criterion, r
 
 ### 6. Obtain independent review
 
-Read `references/review-contract.md`. Launch read-only reviewers only after
-the verification step completes. Treat conformance, security, and adversarial
-review as lens assignments rather than required custom agent names. Claude may
-use the matching plugin agents. Codex must use a fresh built-in `default`
+Read `references/review-contract.md`. After final verification succeeds,
+freeze the complete candidate diff and run the required advisory pass from
+that contract. Run it before launching any blocking reviewer. Treat
+conformance, security, and adversarial review as lens assignments rather than
+required custom agent names. Claude may use the matching plugin agents. Codex
+must use a fresh built-in `default`
 subagent at GPT-5.6 Sol/high for each lens, never a named or global reviewer
 type, with the complete inspection-only lens assignment. Always assign
 conformance and add security when the risk policy calls for it.

@@ -20,6 +20,12 @@ finding ledger across rounds and adjudicates speculative, out-of-scope, or
 style items as residual or nonblocking. Ledger context never replaces fresh,
 independent inspection where required.
 
+The advisory pass is defined once in
+`../../implement-spec/references/review-contract.md`. Every route follows
+that contract after final verification and freeze and before the blocking
+panel. This file selects blocking lenses and does not duplicate advisory
+invocation commands.
+
 Launch reviewers as native subagents of the current host. The names below are
 lenses, not required globally registered agent types. Claude may use the
 matching agents bundled with the plugin. Codex uses a fresh built-in `default`
@@ -47,22 +53,20 @@ mixed Claude + Codex review; native failure never selects it as a fallback.
 
 ## Advisory (quality — surfaced, never blocks the loop, runs at every tier)
 
-Advisory reviewers never gate or loop, so tiering them by cost doesn't apply
-the way it does to the blocking lenses below — they run before every PR at
-every tier, DIRECT included, precisely to catch what they catch *before* CI
-and a human reviewer do, instead of after.
-
-- `coderabbit:code-reviewer` — always, if available. Style and bug-pattern
-  scan.
-- `ponytail:ponytail-review` — always. Near-zero cost even when a diff is too
-  small to have anything to simplify.
+The required advisory pass in
+`../../implement-spec/references/review-contract.md` runs before every PR at
+every tier, DIRECT included. It defines the fresh native Ponytail skill
+review, the optional external CodeRabbit CLI review, complete frozen-diff
+inputs, visible skips, and inspection-only/nonblocking behavior. Advisory
+findings are surfaced but never gate or loop. Keep invocation details in that
+shared contract.
 
 ## By tier
 
-- **T0 (DIRECT):** no blocking panel — tests are the gate — but the advisory
-  pass above still runs before the PR opens.
-- **T1 (STANDARD):** conformance (blocking) added to the advisory
-  pass.
+- **T0 (DIRECT):** no blocking panel — tests are the gate — but the required
+  advisory pass still runs before the PR opens.
+- **T1 (STANDARD):** the conformance blocking panel follows the required
+  advisory pass.
 - **T2 or risk=high (HEAVY):** all of the above, plus security and/or
   adversarial lenses when applicable.
 

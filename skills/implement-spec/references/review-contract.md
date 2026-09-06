@@ -15,6 +15,48 @@ linters, validators, or other verification commands. They assess only these
 three supplied inputs and report findings. Verification and its evidence
 belong to the preceding workflow step.
 
+## Required advisory pass
+
+After final verification succeeds, the host freezes the complete candidate
+diff, including its immutable base and any untracked files, and runs this
+advisory pass once before launching any blocking reviewer. A repair round
+repeats verification and freeze first, then runs one pass for the new frozen
+candidate. Both advisories receive the original user request or authoritative
+specification, the approved plan, and that same complete frozen diff.
+
+The advisory pass is inspection-only and nonblocking. Findings are recorded
+and surfaced as advisory output; they never change verification, select or
+replace a correctness/security reviewer, trigger a repair, or extend a loop.
+
+### Ponytail advisory
+
+Launch exactly one fresh native read-only advisory subagent. Its assignment
+must apply the installed `ponytail:ponytail-review` skill to the frozen diff
+and include the original request or specification and approved plan. The
+subagent reports complexity-only findings and must never edit, verify, block,
+or loop. Ponytail global mode is distinct from this skill invocation. If the
+skill is unavailable, record a visible `SKIPPED` advisory result and continue.
+
+### CodeRabbit CLI advisory
+
+When the `coderabbit` executable is available, invoke the external CLI against
+the complete candidate diff with its frozen base and untracked-file handling:
+
+```sh
+coderabbit review --agent --base-commit "$FROZEN_BASE_COMMIT" \
+  --uncommitted --include-untracked --config "$ADVISORY_CONTEXT_FILE"
+```
+
+Before the invocation, create a temporary additional-instructions/context
+file outside the repository. It must contain the original request or
+specification, the approved plan, and the constraint that the review is
+inspection-only: do not edit or run verification commands, and report only
+nonblocking advisory findings. Capture the CLI output as advisory evidence.
+If the executable is unavailable or the CLI is unauthenticated, record a
+visible `SKIPPED` result and continue. Any CLI failure remains advisory and
+must never fail, block, retry, or loop the task. CodeRabbit is an external CLI
+invocation, not a native subagent or a plugin skill.
+
 ## Review convergence
 
 The host keeps a compact finding ledger across rounds. Each entry retains a

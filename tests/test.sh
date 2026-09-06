@@ -71,6 +71,45 @@ grep -qF 'supported states and assumptions' \
   "$ROOT/skills/implement-spec/references/review-contract.md"
 grep -qF 'concrete supported precondition' \
   "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'After final verification succeeds' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'before launching any blocking reviewer' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'fresh native read-only advisory subagent' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'ponytail:ponytail-review' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'complexity-only findings' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'Ponytail global mode is distinct' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'coderabbit review --agent' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF -- '--base-commit' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF -- '--include-untracked' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF -- '--config' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'additional-instructions/context' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'visible `SKIPPED`' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'never fail, block, retry, or loop' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+grep -qF 'not a native subagent or a plugin skill' \
+  "$ROOT/skills/implement-spec/references/review-contract.md"
+if grep -qF 'coderabbit:code-reviewer' \
+  "$ROOT/skills/route/references/review-panel.md"; then
+  echo "review panel must not name a CodeRabbit plugin reviewer" >&2
+  exit 1
+fi
+grep -qF 'The advisory pass is defined once' \
+  "$ROOT/skills/route/references/review-panel.md"
+grep -qF 'required advisory pass from' "$ROOT/skills/implement-spec/SKILL.md"
+grep -qF 'review-contract.md' \
+  "$ROOT/skills/route/references/implement-and-verify.md"
+grep -qF 'review-contract.md' "$ROOT/skills/stage-ticket/SKILL.md"
 grep -qF 'Except for DIRECT' \
   "$ROOT/skills/route/references/implement-and-verify.md"
 grep -qF 'STANDARD and HEAVY always retain exactly-one-worker semantics' \
