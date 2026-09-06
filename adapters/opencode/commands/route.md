@@ -29,7 +29,7 @@ Pick exactly one route:
 
 tier: T0 trivial · T1 simple · T2 complex/risky · T4 large-scale · `any` (SPEC only).
 risk: low (cosmetic) · medium (broad change) · high (auth/security/payments/data,
-or unknown root cause). high ALWAYS forces human plan approval + cross-model review.
+or unknown root cause). high ALWAYS forces human plan approval + independent review.
 
 Disambiguation: RALPH = sequential list; SWARM = parallel independent scopes.
 Unknown-cause bug reports are HEAVY + high. If not objectively checkable → SPEC.
@@ -46,6 +46,11 @@ Append one line to `.claude/routing-log.md` (fields you can't know yet stay `-`)
 
 ## 4 · Follow the route
 
+Use subagents native to the current host for exploration and review. Use an
+external CLI only when the user explicitly requests mixed Claude + Codex
+review. A native launch failure stops or retries within the relevant cap; it
+never silently changes providers.
+
 Every route below that reaches implementation runs the same core: implement
 → run the same test command CI itself runs (cap `TEST_LOOP_CAP`) → an
 advisory pass (`coderabbit` if available + `ponytail-review`, cheap,
@@ -58,9 +63,9 @@ differs by route:
              plan depends on unknowns) → implement, core → `conformance-reviewer`
              blocking (cap `REVIEW_LOOP_CAP`, capped loop back to implement) → PR.
 - HEAVY    → delegate exploration to `repo-explorer` → grill to a crisp spec →
-             plan at high effort (cap `PLAN_LOOP_CAP_T2`), get a cross-family
-             critic (`harness/review.sh`, GPT-6 Astra by default) → STOP for
-             human approval → implement, core → `conformance-reviewer` plus
+             plan at high effort (cap `PLAN_LOOP_CAP_T2`) → fresh read-only
+             native plan critic → STOP for human approval → implement, core →
+             `conformance-reviewer` plus
              `security-reviewer`/`adversarial-reviewer` as applicable, blocking
              (cap `REVIEW_LOOP_CAP_T2`; mandatory if any model in the loop is
              Critical-tier for cyber capability — see risk-policy.md) → PR →
@@ -80,4 +85,5 @@ open the PR yet.
 
 Never push to main; all merges via PR + CI; never modify tests to make them
 pass; when a loop hits its cap, stop and report; for HEAVY or risk=high, produce
-the plan and STOP for human approval — do not implement.
+the plan, obtain native plan review, and STOP for human approval — do not
+implement.

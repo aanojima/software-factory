@@ -4,23 +4,52 @@ set -euo pipefail
 : "${AGENTIC_TARGET:=$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 export SOFTWARE_FACTORY_HOME AGENTIC_TARGET
 source "$SOFTWARE_FACTORY_HOME/harness/loops.env"
+CALLER_EXECUTOR="${AGENTIC_EXECUTOR:-}"
 [[ -f "$AGENTIC_TARGET/.software-factory.env" ]] && source "$AGENTIC_TARGET/.software-factory.env"
+[[ -z "$CALLER_EXECUTOR" ]] || AGENTIC_EXECUTOR="$CALLER_EXECUTOR"
 cd "$AGENTIC_TARGET"
 
 TASK="${1:?usage: dispatch.sh <task>}"
 J="$("$SOFTWARE_FACTORY_HOME/harness/triage.sh" "$TASK")"
 echo "$J" | jq .
 route=$(jq -r .route <<<"$J"); tier=$(jq -r .tier <<<"$J"); risk=$(jq -r .risk <<<"$J")
+HOST_RUNTIME="${AGENTIC_EXECUTOR:-claude}"
 mkdir -p .claude
 printf '%s | %.60s | %s | %s/%s | - | - | - | - | pending\n' \
   "$(date +%F)" "$TASK" "$route" "$tier" "$risk" >> .claude/routing-log.md
+if [[ "$risk" == "high" ]]; then
+  echo "⚠ risk=high: human plan approval + independent review are mandatory."
+  if [[ "$HOST_RUNTIME" == "codex" ]]; then
+    echo "→ open Codex and /execute the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES; do not run the route before approval"
+  else
+    echo "→ open Claude and /software-factory:execute the task: explore → plan → native high-effort critic → HUMAN APPROVES; do not run the route before approval"
+  fi
+  exit 10
+fi
 case "$route" in
-  DIRECT)   echo "→ run: claude -p \"$TASK — implement, run tests, commit to a branch\" --model $TRIAGE_MODEL" ;;
-  STANDARD) echo "→ open Claude Code: plan mode (T2) or one-line plan (T1); implement on $EXEC_MODEL; then harness/review.sh <plan>" ;;
-  HEAVY)    echo "→ HEAVY — human gates in force: /grill-me → plan (fable/sol, effort high) → HUMAN APPROVES → implement on $EXEC_MODEL → review.sh ×$REVIEW_LOOP_CAP, both families → human signs the diff" ;;
-  RALPH)    echo "→ write tasks/prd.md + one spec per file in tasks/todo/, then: harness/ralph.sh" ;;
-  SWARM)    echo "→ decompose to ≤5 scopes, then: claude --worktree <scope> per scope" ;;
+  DIRECT)
+    if [[ "$HOST_RUNTIME" == "codex" ]]; then
+      echo "→ run in Codex: /execute $TASK"
+    else
+      echo "→ run in Claude: /software-factory:execute $TASK"
+    fi
+    ;;
+  STANDARD) echo "→ open $HOST_RUNTIME: short plan → implement → native conformance-reviewer" ;;
+  HEAVY)
+    if [[ "$HOST_RUNTIME" == "codex" ]]; then
+      echo "→ HEAVY in Codex — /execute the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES → implement → native review panel → human signs the diff"
+    else
+      echo "→ HEAVY in Claude — /software-factory:execute the task: explore → plan → native high-effort critic → HUMAN APPROVES → implement → native review panel → human signs the diff"
+    fi
+    ;;
+  RALPH)    printf '→ write tasks/prd.md + one spec per file in tasks/todo/, then: AGENTIC_EXECUTOR=%q software-factory ralph\n' "$HOST_RUNTIME" ;;
+  SWARM)
+    if [[ "$HOST_RUNTIME" == "codex" ]]; then
+      echo "→ SWARM in Codex requires native agents with separate worktrees; stop if this runtime cannot provide worktree isolation"
+    else
+      echo "→ decompose to ≤5 scopes, then: claude --worktree <scope> per scope"
+    fi
+    ;;
   CRON)     echo "→ draft a Routine/Action with done-criteria. No self-looping." ;;
   SPEC)     echo "→ /grill-me until measurable, then re-run dispatch on the PRD" ;;
 esac
-[[ "$risk" == "high" ]] && echo "⚠ risk=high: human plan approval + cross-model review are mandatory regardless of route."

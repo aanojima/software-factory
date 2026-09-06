@@ -7,3 +7,5 @@
 6. For an authoritative specification, use `/software-factory:implement-spec`.
    The host session owns the workflow and exactly one writer; explorers and
    reviewers remain read-only.
+7. Use native subagents from the current host by default. Use an external CLI
+   bridge only when the user explicitly requests mixed Claude + Codex review.

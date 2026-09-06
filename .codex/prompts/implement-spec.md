@@ -1,3 +1,3 @@
 Use `$implement-spec` to implement the authoritative specification at `$ARGUMENTS`.
 
-Act as the host-session orchestrator. Use native read-only subagents for bounded exploration and independent review when available, keep exactly one writer in the worktree, preserve `.agent-runs/` artifacts, and stop at every risk or readiness gate defined by the skill.
+Act as the host-session orchestrator. Use native read-only Codex subagents for bounded exploration and independent review, keep exactly one writer in the worktree, preserve `.agent-runs/` artifacts, and stop at every risk or readiness gate defined by the skill. Before asking for approval on a high-risk plan, use a fresh native GPT-6 Astra plan critic at high effort. Do not run `codex exec` from the terminal; use an external CLI only when the user explicitly requests mixed Claude + Codex review. If native launch fails, stop or retry within the skill's cap without changing providers.

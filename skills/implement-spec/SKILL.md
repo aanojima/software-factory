@@ -18,6 +18,11 @@ Resolve bundled script, reference, and schema paths relative to this `SKILL.md`;
 
 The current host session is the orchestrator. Subagents report facts or review findings to it; they do not become nested orchestrators.
 
+Use native subagents from the current host by default. Use an external CLI
+bridge only when the user explicitly requests mixed Claude + Codex review. If
+a native launch fails, stop or retry within the applicable cap; never silently
+switch providers.
+
 ## Apply the workflow
 
 ### 1. Gate implementation readiness
@@ -33,7 +38,12 @@ Read `references/spec-readiness.md`. Write `readiness.json` using `schemas/readi
 
 Read `references/exploration-contract.md`. Identify the smallest set of codebase unknowns that can change the implementation approach.
 
-When native subagents are available, launch independent read-only explorers directly from this host session, in parallel where useful. Prefer the runtime's `repo-explorer` role. Otherwise explore sequentially. Require file/symbol evidence and prohibit edits.
+When exploration is needed, launch independent read-only explorers directly
+from this host session, in parallel where useful. Prefer the runtime's
+`repo-explorer` role. Require file/symbol evidence and prohibit edits. If no
+repository unknown can change the approach, record that and skip exploration.
+If a native explorer cannot launch, retry once at most and then stop; do not
+continue through a sequential or external-provider fallback.
 
 Store findings under `exploration/`. Do not ask explorers to choose the final design.
 
@@ -45,7 +55,14 @@ The plan must trace every acceptance criterion to code changes and validation ev
 
 - `low`: continue autonomously.
 - `medium`: continue, explicitly record risks and rollback; surface them in the final report.
-- `high`: transition to `awaiting_approval`, present the plan and risk summary, and stop until explicit human approval.
+- `high`: before requesting human approval, ask a fresh read-only native
+  subagent to review the plan against the spec snapshot and exploration
+  evidence. In Codex use GPT-6 Astra at high effort; in Claude use a
+  high-effort native plan critic. Require approval or concrete blockers; the
+  plan reviewer does not need an implementation diff. Record its verdict and
+  any resolved blockers in `decisions.md`. Revise and obtain a fresh review up
+  to `PLAN_LOOP_CAP_T2`; after approval, transition to `awaiting_approval`,
+  present the plan and risk summary, and stop until explicit human approval.
 
 ### 4. Enforce one writer
 

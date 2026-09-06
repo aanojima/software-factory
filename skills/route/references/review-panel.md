@@ -6,6 +6,10 @@ read-only and independent of the writer, get the plan/diff/validation
 evidence but not the writer's private reasoning, and minor findings never
 block completion.
 
+Launch reviewers as native subagents of the current host. An external CLI
+bridge is reserved for an explicitly requested mixed Claude + Codex review;
+native failure never selects it as a fallback.
+
 ## Blocking (correctness/security — count toward the review loop cap)
 
 - `conformance-reviewer` — always, fixed. Goal correctness, plan conformance,

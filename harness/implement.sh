@@ -60,7 +60,8 @@ $RUN_DIR
 
 Do not create a second run. The current session is the orchestrator and sole writer. Use native
 read-only subagents for bounded exploration and independent review, preserve all run artifacts,
-and honor readiness, risk, approval, validation, review, and loop-cap gates.
+and honor readiness, risk, approval, validation, review, and loop-cap gates. Before presenting a
+high-risk plan for human approval, obtain the host-native plan review required by the skill.
 EOF
 
 command -v "$RUNTIME" >/dev/null 2>&1 || { echo "runtime not found on PATH: $RUNTIME" >&2; exit 69; }

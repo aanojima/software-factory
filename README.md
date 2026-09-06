@@ -79,7 +79,7 @@ spec; technical uncertainty is resolved through repository exploration.
 │   ├── install-user.sh           global local-machine installation
 │   ├── execute.sh                classify + run the safe routes / gate the rest
 │   ├── dispatch.sh               route, log, print the next command (never auto-runs)
-│   ├── review.sh                 one cross-family conformance-review round
+│   ├── review.sh                 explicit external Codex review bridge
 │   ├── ralph.sh                  capped fresh-context loop w/ identical-failure breaker
 │   └── init.sh                   wire a consumer repo to the plugin + Codex
 ├── .codex/prompts/               Codex execute + implement-spec entrypoints
@@ -107,8 +107,15 @@ spec; technical uncertainty is resolved through repository exploration.
   prints the classification JSON, appends the log line, and prints the exact
   next command for you (or a wrapper) to run. Print-only is the safety boundary.
 - **Mode C (HEAVY walk-through).** Human gates in force: grill → plan at high
-  effort → **human approves** → cheap executor implements → test loop → conformance
-  review (both families) → goal-gate the diff → PR → CI → **human merges**.
+  effort → native plan critic → **human approves** → one writer implements →
+  test loop → native review panel → goal-gate the diff → PR → CI →
+  **human merges**.
+
+Inline and spec workflows use the current host's native subagents by default.
+Codex uses native Codex explorers/reviewers and a native GPT-6 Astra HEAVY plan
+critic; Claude uses its native equivalents. The external CLI bridge is only
+for a user-requested mixed Claude + Codex review. A native launch failure stops
+or retries within the existing cap instead of changing providers.
 
 ## Route pipelines
 
@@ -203,7 +210,7 @@ flowchart TD
     A[Ticket] --> B0["Classify<br/>route=HEAVY · risk=high"]
     B0 -.-> X["repo-explorer"]
     X -.-> P
-    B0 --> P["Plan<br/>high effort + cross-family critic"]
+    B0 --> P["Plan<br/>high effort + native critic"]
     P --> D0{"Human approves<br/>plan + risk summary"}
     D0 --> B
     subgraph CORE3["implement-and-verify.md — shared core"]
@@ -466,13 +473,14 @@ software-factory report | eval | review <plan> | ralph
 `execute` auto-runs the safe routes (DIRECT, STANDARD) and **stops with guidance**
 for gated / multi-step routes (HEAVY, RALPH, SWARM, CRON, SPEC, or any
 `risk=high`) — the print-only safety boundary, preserved for headless runs. Pick
-the executor family with `AGENTIC_EXECUTOR=claude|codex` (default `claude`).
+the classifier, executor, and native-agent family with
+`AGENTIC_EXECUTOR=claude|codex` (default `claude`).
 
 **3 · Direct CLI** — headless:
 
 ```bash
 claude -p "/software-factory:execute add CSV export to reports"   # VERIFY: slash expansion in -p
-codex exec "$(cat .codex/prompts/execute.md)"                    # substitute the task for $ARGUMENTS
+codex --enable multi_agent exec "$(cat .codex/prompts/execute.md)" # substitute the task for $ARGUMENTS
 ```
 
 For scripted/unattended use prefer the binary — it enforces the risk gate before
@@ -508,8 +516,10 @@ duplicate `implement-spec` skill; it will continue using the `.agents` copy.
 The scripts are deliberately small; CLI flags drift, so anything marked
 `# VERIFY` should be checked against `--help` first. Harden per
 [the bootstrap doc's checklist](#): branch protection on `main` (require PR +
-CI), both CLIs authenticated, `review.sh` returns valid JSON on a toy diff,
-`ralph.sh` sandboxed with its breaker tested, billing alerts armed.
+CI), native subagent smoke tests pass, `ralph.sh` is sandboxed with its breaker
+tested, and billing alerts are armed. For explicit mixed Claude + Codex review,
+also authenticate both CLIs and check that `review.sh` returns valid JSON on a
+toy diff.
 
 ## Evaluator gates
 
