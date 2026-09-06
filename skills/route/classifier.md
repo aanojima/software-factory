@@ -15,7 +15,7 @@ markdown fences, no prose:
            normal work.
 - HEAVY    High-stakes or subtle: security, auth, payments, money movement,
            data integrity, migrations that can corrupt, or a bug whose cause
-           is unknown. Requires human plan approval + cross-model review.
+           is unknown. Requires human plan approval + independent review.
 - RALPH    Large but repetitive work that decomposes into a long list of
            near-identical, independently-verifiable steps done in sequence
            (framework/version upgrades, sweeping codemods). Fits a capped
@@ -51,6 +51,6 @@ Disambiguation:
 - medium  Broad code change or migration that could break the build widely.
 - high    Touches auth, security, payments, money, privacy, or data integrity,
           OR the root cause is unknown. high risk ALWAYS forces human plan
-          approval + cross-model review, regardless of route.
+          approval + independent review, regardless of route.
 
 Return the JSON object and nothing else.

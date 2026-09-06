@@ -46,9 +46,17 @@ State the decision in one line before touching anything:
   `repo-explorer` first rather than guessing. Draft a one-line plan,
   implement on the cheap executor.
 - **HEAVY**: delegate exploration to `repo-explorer`. Grill the task to a
-  crisp spec, plan at high effort, get a cross-family critic on the plan
-  (`harness/review.sh`, GPT-6 Astra by default), and **stop for human plan
-  approval** before implementing. Do not proceed past this gate without it.
+  crisp spec, plan at high effort, then ask a fresh, read-only native subagent
+  to review the plan against the task/spec and exploration evidence. In Codex
+  use GPT-6 Astra at high effort; in Claude use a high-effort native plan
+  critic. The plan review returns approval or concrete blockers and does not
+  require an implementation diff. Honor `PLAN_LOOP_CAP_T2`, then **stop for
+  human plan approval** before implementing.
+
+Use native subagents from the current host throughout this workflow. Use an
+external CLI bridge only when the user explicitly requests mixed Claude +
+Codex review. A failed native launch stops or retries within the existing cap;
+it never silently changes providers.
 
 Then, for every route that reaches this point, run the same core in order:
 

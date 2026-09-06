@@ -21,7 +21,7 @@ Do this in order:
 3. **Log** the v2 routing-log line to `.claude/routing-log.md` in the current repo.
 4. **Follow** the matching workstream (see the `route` skill for each route).
 
-Hard rules: for **HEAVY** or **risk=high**, produce the plan and STOP for my
-approval — do not implement. Never push to main; all merges via PR + CI. Never
-modify tests to make them pass. When a loop hits its cap, stop and report — do
-not improvise past it.
+Hard rules: for **HEAVY** or **risk=high**, produce the plan, obtain native plan
+review, and STOP for my approval — do not implement. Never push to main; all
+merges via PR + CI. Never modify tests to make them pass. When a loop hits its
+cap, stop and report — do not improvise past it.

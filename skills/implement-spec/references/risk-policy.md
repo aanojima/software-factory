@@ -26,10 +26,10 @@ Approval covers the stated intent, approach, blast radius, and rollback—not bl
 
 ## Frontier-capability trigger
 
-If any model in the loop (writer or cross-family critic) is rated at the
+If any model in the loop (writer or native/external critic) is rated at the
 Critical tier for cyber capability under its lab's own preparedness/
-responsible-scaling framework (e.g. GPT-6 Astra, used by default as the
-HEAVY cross-family critic — see `harness/review.sh`), treat the change as
+responsible-scaling framework (e.g. GPT-6 Astra, used by default for HEAVY
+plan review in Codex), treat the change as
 high risk and require `adversarial-reviewer` in the panel regardless of the
 change's apparent scope. The same capability that makes a model good at
 finding and exploiting an unknown flaw is exactly what should worry you

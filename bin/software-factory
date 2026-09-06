@@ -44,7 +44,7 @@ run (operate on the current repo):
                            auto-run; gated routes print next steps)
   dispatch <task>          classify, log, and PRINT the next command (never runs)
   triage   <task>          classify only → JSON {route,tier,risk}
-  review <plan> [range] [spec] [validation]  structured independent review
+  review <plan> [range] [spec] [validation]  external Codex implementation review
   ralph                    run the capped fresh-context task loop (tasks/todo/)
   pr-watch <PR>            synchronous CI/review triage for one PR (Codex/
                            OpenCode fallback — Claude Code uses the pr-watch

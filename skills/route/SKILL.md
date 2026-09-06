@@ -30,7 +30,7 @@ State the decision plainly to the user before doing anything else:
 
     route=<ROUTE> tier=<TIER> risk=<RISK> — <why>
 
-If `risk=high`, add: "risk=high → human plan approval and cross-model review
+If `risk=high`, add: "risk=high → human plan approval and independent review
 are mandatory regardless of route." Do not proceed past a human gate without
 explicit approval.
 
@@ -52,11 +52,20 @@ know yet stay `-`, outcome starts `pending`):
   for T2), implement on the cheap executor, then follow
   `references/implement-and-verify.md`'s core + its T1/STANDARD gate.
 - **HEAVY** — Human gates are in force. Delegate exploration to `repo-explorer`.
-  Grill the task to a crisp spec, plan at high effort, get a cross-family
-  critic on the plan (`harness/review.sh`, GPT-6 Astra by default — cap
-  `PLAN_LOOP_CAP_T2`), and **stop for human approval**. Only then implement,
-  and follow `references/implement-and-verify.md`'s core + its T2/HEAVY gate
-  — the human signs the final diff and merges. Never push to main.
+  Grill the task to a crisp spec, plan at high effort, then ask a fresh,
+  read-only native subagent to review the plan against the task/spec and
+  exploration evidence. In Codex use GPT-6 Astra at high effort; in Claude use
+  a high-effort native plan critic. A plan review returns approval or concrete
+  blockers and does not require an implementation diff. Honor
+  `PLAN_LOOP_CAP_T2`, then **stop for human approval**. Only then implement and
+  follow `references/implement-and-verify.md`'s core + its T2/HEAVY gate — the
+  human signs the final diff and merges. Never push to main.
+
+Use native subagents from the current host for exploration, plan review, and
+implementation review. Use an external CLI bridge such as `harness/review.sh`
+only when the user explicitly requests a mixed Claude + Codex review. A native
+launch failure must stop or retry within the existing cap; it must not silently
+switch providers.
 - **RALPH** — Write `tasks/prd.md` plus one spec file per unit in
   `tasks/todo/`, then hand off to the capped loop (`harness/ralph.sh`). Do not
   hand-run the loop past its cap.

@@ -6,6 +6,9 @@ or a follow-up commit on a PR that's already open and being watched
 (`pr-intake`'s STANDARD dispatch and HEAVY apply-decision dispatch). Only the
 gate that follows this core differs by context.
 
+Every agent in this core is native to the current host unless the user
+explicitly requests mixed Claude + Codex review.
+
 ## Core (always, in order)
 
 1. Implement the fix or feature.

@@ -5,7 +5,7 @@ set -euo pipefail
 export SOFTWARE_FACTORY_HOME AGENTIC_TARGET
 cd "$AGENTIC_TARGET"
 
-PLAN="${1:?usage: review.sh <plan.md> [git-range] [spec.md] [validation.json]}"
+PLAN="${1:?usage: review.sh <plan.md> [git-range] [spec.md] [validation.json] (explicit external Codex implementation review)}"
 RANGE="${2:-main...HEAD}"; SPEC="${3:-}"; VALIDATION="${4:-}"
 SCHEMA="$SOFTWARE_FACTORY_HOME/skills/implement-spec/schemas/review.schema.json"
 PROMPT_FILE="$(mktemp)"; OUTPUT_FILE="$(mktemp)"

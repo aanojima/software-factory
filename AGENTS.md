@@ -13,6 +13,8 @@ classifies each task and runs it through the right workstream. Claude Code reads
 6. For an authoritative specification, use `/software-factory:implement-spec`.
    The host session owns the workflow and exactly one writer; explorers and
    reviewers remain read-only.
+7. Use native subagents from the current host by default. Use an external CLI
+   bridge only when the user explicitly requests mixed Claude + Codex review.
 
 ## Running a task
 - In a Codex session, type `/execute <task>` (self-contained prompt in
@@ -25,9 +27,11 @@ classifies each task and runs it through the right workstream. Claude Code reads
   shipped by the plugin. Caps and model tiers are in `harness/loops.env`.
 
 ## Gates
-- **HEAVY** or **risk=high** → produce the plan and STOP for human approval. Do
-  not implement past the gate.
-- When acting as the reviewer (the other family — GPT-6 Astra by default for
-  HEAVY, via `harness/review.sh`), judge **conformance to the approved plan
-  and original acceptance criteria**, not taste. Return JSON that conforms to
-  `skills/implement-spec/schemas/review.schema.json`.
+- **HEAVY** or **risk=high** → produce the plan, obtain independent native
+  plan review, and STOP for human approval. Do not implement past the gate.
+- Use subagents native to the current host by default. Codex uses a native
+  GPT-6 Astra plan critic for HEAVY work; Claude uses its native high-effort
+  critic. Use an external CLI bridge only when the user explicitly requests a
+  mixed Claude + Codex review. Review implementation **conformance to the
+  approved plan and original acceptance criteria**, not taste, and return JSON
+  conforming to `skills/implement-spec/schemas/review.schema.json`.

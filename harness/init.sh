@@ -66,8 +66,15 @@ read -r -d '' RULES_BODY <<'EOF' || true
 
 The routing methodology (classify → announce → log → follow) is the `route`
 skill (Claude, from the plugin) and is embedded in `.codex/prompts/execute.md`
-(Codex). Gates: **HEAVY** or **risk=high** → produce the plan and STOP for human
-approval; do not implement.
+(Codex). Gates: **HEAVY** or **risk=high** → produce the plan, obtain native
+plan review, and STOP for human approval; do not implement. Codex uses a fresh
+native GPT-6 Astra plan critic at high effort and Claude uses a high-effort
+native plan critic.
+
+Use native subagents from the current host for exploration and review. Use an
+external CLI bridge only when the user explicitly requests mixed Claude +
+Codex review. A native launch failure stops or retries within the applicable
+cap; it never silently changes providers.
 EOF
 
 # splice the managed block into a markdown file, preserving surrounding content
