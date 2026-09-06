@@ -3,13 +3,13 @@
 #
 # Resolves two roots and keeps them separate:
 #   SOFTWARE_FACTORY_HOME  where the ENGINE code lives (this checkout; follows
-#                         symlinks so the binary works from anywhere on PATH)
+#                         its own location when run from a checkout or plugin)
 #   AGENTIC_TARGET        the REPO the task runs in (your $PWD's git root)
 # State (routing log, tasks/) lives in the target; engine assets fall back to
 # HOME when the target hasn't been `init`ed.
 set -euo pipefail
 
-# --- resolve engine home even when invoked through a symlink on $PATH ---
+# --- resolve engine home from the packaged binary or a development checkout ---
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do
   DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
@@ -29,11 +29,11 @@ software-factory — route and run engineering tasks through the harness
 usage: software-factory <command> [args]
 
 setup:
-  install-user             install global skill + native runtime agent adapters
-  init   [dir]             vendor the versioned repo kit into a target repo
+  install-user             install/update the Claude and Codex plugins
+  init   [--opencode] [dir]  configure a target repo and seed state
                            (commit it so web/desktop sessions pick it up)
-  update [--to <ref>] [dir]  re-pin + refresh managed files to a release,
-                           leaving your state untouched (--to targets a ref)
+  update [--to <ref>] [--opencode] [dir]
+                           re-pin + refresh managed files, leaving state untouched
   status [dir]             show the repo's pinned version/ref vs the engine
   version                  print the engine version
 

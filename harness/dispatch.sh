@@ -20,7 +20,7 @@ printf '%s | %.60s | %s | %s/%s | - | - | - | - | pending\n' \
 if [[ "$risk" == "high" ]]; then
   echo "⚠ risk=high: human plan approval + independent review are mandatory."
   if [[ "$HOST_RUNTIME" == "codex" ]]; then
-    echo "→ open Codex and /execute the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES; do not run the route before approval"
+    echo "→ open Codex and use \$route for the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES; do not run the route before approval"
   else
     echo "→ open Claude and /software-factory:execute the task: explore → plan → native high-effort critic → HUMAN APPROVES; do not run the route before approval"
   fi
@@ -29,15 +29,15 @@ fi
 case "$route" in
   DIRECT)
     if [[ "$HOST_RUNTIME" == "codex" ]]; then
-      echo "→ run in Codex: /execute $TASK"
+      echo "→ run in Codex: \$route $TASK"
     else
       echo "→ run in Claude: /software-factory:execute $TASK"
     fi
     ;;
-  STANDARD) echo "→ open $HOST_RUNTIME: short plan → implement → native conformance-reviewer" ;;
+  STANDARD) echo "→ open $HOST_RUNTIME: short plan → implement → native conformance review" ;;
   HEAVY)
     if [[ "$HOST_RUNTIME" == "codex" ]]; then
-      echo "→ HEAVY in Codex — /execute the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES → implement → native review panel → human signs the diff"
+      echo "→ HEAVY in Codex — use \$route for the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES → implement → native review panel → human signs the diff"
     else
       echo "→ HEAVY in Claude — /software-factory:execute the task: explore → plan → native high-effort critic → HUMAN APPROVES → implement → native review panel → human signs the diff"
     fi

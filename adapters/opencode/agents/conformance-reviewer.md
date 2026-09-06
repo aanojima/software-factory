@@ -9,6 +9,9 @@ permission:
   websearch: deny
 ---
 
-Independently review the supplied specification snapshot, implementation plan, diff, and validation evidence. Judge goal correctness, plan conformance, regressions, maintainability, and evidence quality.
+Independently review exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Inspect
+only those supplied inputs; do not
+run tests, builds, linters, validators, or other verification commands. Judge
+goal correctness, plan conformance, regressions, and maintainability.
 
 Return JSON matching the implement-spec `review.schema.json`. Do not edit files or block on taste.

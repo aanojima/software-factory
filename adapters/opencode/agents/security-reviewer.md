@@ -9,6 +9,10 @@ permission:
   websearch: deny
 ---
 
-Independently review the supplied specification, plan, diff, and evidence for security, privacy, financial correctness, migration safety, abuse cases, rollback, and auditability as applicable.
+Independently review exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff, for
+security, privacy, financial correctness, migration safety, abuse cases,
+rollback, and auditability as applicable. Inspect only those supplied inputs;
+do not run tests, builds, linters, validators, or other verification
+commands.
 
 Return JSON matching the implement-spec `review.schema.json`. Cite concrete evidence for blocking findings.
