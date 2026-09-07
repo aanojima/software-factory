@@ -66,11 +66,14 @@ resolved through repository exploration.
 │   ├── execute.md                → /software-factory:execute (Claude Code)
 │   └── setup.md                  → /software-factory:setup
 ├── agents/                       Claude plugin explorers + verifier + reviewers
-│   └── bulk-reader.md            cheap Haiku worker for bulk-read delegation
+│   ├── bulk-reader.md            cheap Haiku worker for bulk-read delegation
+│   └── web-reader.md             cheap Haiku worker for web-fetch delegation
 ├── hooks/
-│   ├── hooks.json                PreToolUse: block bulk reads over the line threshold
-│   └── scripts/                  check-file-size.sh (Read), check-bash-read.sh (Bash)
+│   ├── hooks.json                PreToolUse (Read/Bash) + PostToolUse (WebFetch)
+│   └── scripts/                  check-file-size.sh, check-bash-read.sh block bulk
+│                                  reads; check-web-fetch-size.sh nudges after the fact
 ├── skills/bulk-read/SKILL.md     route a blocked bulk read to the cheap worker
+├── skills/web-fetch/SKILL.md     route a flagged web fetch to the cheap worker
 ├── skills/route/
 │   ├── SKILL.md                  the route skill / routing methodology
 │   └── classifier.md             Stage-1 triage prompt (JSON out)
