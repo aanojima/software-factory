@@ -41,8 +41,30 @@ ENABLE_KEY="${PLUGIN_NAME}@${MKT_NAME}"
 # read the existing version marker so we can report the transition
 MARKER="$TARGET/.claude/.software-factory-version"
 LEGACY_MARKER="$TARGET/.claude/.agentic-harness-version"
+MARKER_SOURCE="$MARKER"
 OLD_VER="(none)"; OLD_REF="(none)"; MIGRATE_LEGACY=0
 LEGACY_MARKER_RECOGNIZED=0
+# The bundled factory-setup skill sets these only after the corresponding
+# installed plugin has loaded. Direct CLI calls leave them unset.
+SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED="${SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED:-0}"
+SOFTWARE_FACTORY_CLAUDE_PLUGIN_CONFIRMED="${SOFTWARE_FACTORY_CLAUDE_PLUGIN_CONFIRMED:-0}"
+CODEX_MIGRATION_INCOMPLETE=0
+OPENCODE_CLEANUP_ALLOWED=0
+OPENCODE_LEGACY_REMAINS=0
+
+legacy_path_is_codex_owned() {
+  case "$1" in
+    .codex|.codex/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+legacy_path_is_opencode_owned() {
+  case "$1" in
+    .agents|.agents/*|.opencode|.opencode/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 # A marker authorizes cleanup only when it matches the exact five-line shape
 # emitted by a generated installer. User-created files with a familiar first
@@ -94,13 +116,24 @@ current_marker_is_recognized() {
     '^[0-9]+\\.[0-9]+\\.[0-9]+$'
 }
 
+if legacy_path_has_symlink_ancestor "$MARKER" 0 "$TARGET"; then
+  echo "refusing current marker through symlink ancestor: $MARKER" >&2
+  exit 73
+fi
 if [[ -e "$MARKER" || -L "$MARKER" ]]; then
-  if ! current_marker_is_recognized "$MARKER"; then
+  if [[ -L "$MARKER" ]]; then
+    if ! MARKER_SOURCE="$(legacy_canonical_dangling_leaf "$MARKER" 2>/dev/null)" ||
+       [[ ! -f "$MARKER_SOURCE" ]]; then
+      echo "refusing unsafe current marker symlink: $MARKER" >&2
+      exit 73
+    fi
+  fi
+  if ! current_marker_is_recognized "$MARKER_SOURCE"; then
     echo "refusing unknown or modified current marker: $MARKER" >&2
     exit 73
   fi
-  OLD_VER="$(head -1 "$MARKER" 2>/dev/null || echo '?')"
-  OLD_REF="$(awk -F': *' '/^ref:/{print $2; exit}' "$MARKER" 2>/dev/null || echo '?')"
+  OLD_VER="$(head -1 "$MARKER_SOURCE" 2>/dev/null || echo '?')"
+  OLD_REF="$(awk -F': *' '/^ref:/{print $2; exit}' "$MARKER_SOURCE" 2>/dev/null || echo '?')"
   case "$OLD_VER" in 0.0.*|0.1.*|0.2.0) MIGRATE_LEGACY=1 ;; esac
 fi
 if [[ -e "$LEGACY_MARKER" || -L "$LEGACY_MARKER" ]]; then
@@ -113,8 +146,8 @@ if [[ -e "$LEGACY_MARKER" || -L "$LEGACY_MARKER" ]]; then
   fi
   if legacy_marker_is_recognized "$LEGACY_MARKER"; then
     LEGACY_MARKER_RECOGNIZED=1
+    MIGRATE_LEGACY=1
     if [[ ! -f "$MARKER" ]]; then
-      MIGRATE_LEGACY=1
       OLD_VER="$legacy_old_ver"
       OLD_REF="$legacy_old_ref"
     fi
@@ -260,7 +293,7 @@ validate_managed_destination() {
     return 0
   fi
   if [[ ! -f "$file" ]]; then
-    echo "refusing non-file managed destination: $file" >&2
+    echo "refusing non-file destination: $file" >&2
     return 73
   fi
 }
@@ -368,6 +401,51 @@ preflight_legacy_manifest_ancestors() {
   done < <(awk -F '\t' '!seen[$1]++ && $1 !~ /^#/ && $1 != "" {print $1}' "$manifest_file")
 }
 
+# Legacy Claude settings are migration state too. Keep the old entries until
+# every requested adapter refresh has succeeded, then remove only the official
+# legacy values while preserving user-owned collisions.
+cleanup_legacy_settings() {
+  [[ "$MIGRATE_LEGACY" -eq 1 ]] || return 0
+  local existing tmp
+  existing="$(cat "$SETTINGS")"
+  tmp="$(mktemp "$(dirname "$SETTINGS")/.software-factory-settings-cleanup.XXXXXX")"
+  if ! jq '
+    def official_legacy_marketplace:
+      if . == {source: {source: "github", repo: "aanojima/agentic-harness"}} then
+        true
+      elif type == "object" then
+        if (keys != ["source"] or (.source | type) != "object") then
+          false
+        elif (.source | keys) != ["ref", "repo", "source"] then
+          false
+        elif .source.source != "github" or .source.repo != "aanojima/agentic-harness" then
+          false
+        elif (.source.ref | type) != "string" then
+          false
+        else (.source.ref | length) > 0
+        end
+      else false
+      end;
+    if (.extraKnownMarketplaces["agentic-harness"] | official_legacy_marketplace) then
+      del(.extraKnownMarketplaces["agentic-harness"])
+    else . end
+    | if .enabledPlugins["agentic-harness@agentic-harness"] == true then
+        del(.enabledPlugins["agentic-harness@agentic-harness"])
+      else . end
+  ' <<<"$existing" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if cmp -s "$SETTINGS" "$tmp"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  if ! safe_replace "$SETTINGS" "$tmp"; then
+    rm -f "$tmp"
+    return 73
+  fi
+}
+
 # Validate every managed input before settings, rules, or migration cleanup can
 # mutate the target. Both historical blocks may appear once, in either order.
 for managed_file in "$TARGET/AGENTS.md" "$TARGET/CLAUDE.md" "$TARGET/.claude/settings.json"; do
@@ -408,7 +486,20 @@ fi
 if ! preflight_legacy_manifest_ancestors; then
   exit 73
 fi
-if ! validate_local_file_destination "$TARGET/.gitignore"; then
+if [[ "$MODE" == "init" ]]; then
+  for state_rel in \
+    .claude/routing-log.md \
+    eval/golden.jsonl \
+    tasks/todo/.gitkeep \
+    tasks/done/.gitkeep; do
+    if ! validate_managed_destination "$TARGET/$state_rel" ||
+       ! validate_directory_ancestor "$(dirname "$TARGET/$state_rel")" "state"; then
+      exit 73
+    fi
+  done
+fi
+if ! validate_managed_destination "$TARGET/.gitignore" ||
+   ! validate_directory_ancestor "$(dirname "$TARGET/.gitignore")" "managed"; then
   exit 73
 fi
 
@@ -507,7 +598,7 @@ seed_state() {
 }
 
 refresh_managed_file() {
-  local src="$1" dest="$2" rel="$3" hash source_hash canonical target_hash mode tmp
+  local src="$1" dest="$2" rel="$3" hash source_hash canonical mode tmp
   if ! validate_directory_ancestor "$(dirname "$dest")" "OpenCode"; then
     return 73
   fi
@@ -531,53 +622,39 @@ refresh_managed_file() {
       echo "  ! refusing symlink to non-file $rel" >&2
       return 73
     fi
-    case "$canonical" in
-      "$TARGET"/*) ;;
-      *)
-        echo "  ! refusing external OpenCode symlink $rel" >&2
-        return 73
-        ;;
-    esac
-    target_hash="$(legacy_sha256_file "$canonical" 2>/dev/null || true)"
     if cmp -s "$src" "$canonical"; then
       echo "  = preserved symlink $rel" >&2
       return 0
     fi
-    if [[ -n "$target_hash" ]] && awk -F '\t' -v p="$rel" -v h="$target_hash" \
-      '$1 == p && $2 == h {ok=1} END {exit !ok}' \
-      "$SRC/harness/legacy-managed.sha256"; then
-      if stat -c '%a' "$canonical" >/dev/null 2>&1; then
-        mode="$(stat -c '%a' "$canonical")"
-      elif stat -f '%Lp' "$canonical" >/dev/null 2>&1; then
-        mode="$(stat -f '%Lp' "$canonical")"
-      else
-        echo "  ! refusing to read mode for historical OpenCode symlink target $rel" >&2
-        return 73
-      fi
-      if ! tmp="$(mktemp "$(dirname "$canonical")/.software-factory-opencode.XXXXXX")"; then
-        echo "  ! failed to create replacement for historical OpenCode symlink target $rel" >&2
-        return 73
-      fi
-      if ! cp "$src" "$tmp"; then
-        rm -f -- "$tmp"
-        echo "  ! failed to copy packaged OpenCode file $rel" >&2
-        return 73
-      fi
-      if ! chmod "$mode" "$tmp"; then
-        rm -f -- "$tmp"
-        echo "  ! failed to preserve mode for historical OpenCode symlink target $rel" >&2
-        return 73
-      fi
-      if ! mv "$tmp" "$canonical"; then
-        rm -f -- "$tmp"
-        echo "  ! failed to atomically refresh historical OpenCode symlink target $rel" >&2
-        return 73
-      fi
-      echo "  ~ refreshed historical OpenCode symlink target $rel" >&2
-      return 0
+    if stat -c '%a' "$canonical" >/dev/null 2>&1; then
+      mode="$(stat -c '%a' "$canonical")"
+    elif stat -f '%Lp' "$canonical" >/dev/null 2>&1; then
+      mode="$(stat -f '%Lp' "$canonical")"
+    else
+      echo "  ! refusing to read mode for OpenCode symlink target $rel" >&2
+      return 73
     fi
-    echo "  ! refusing stale OpenCode symlink $rel" >&2
-    return 1
+    if ! tmp="$(mktemp "$(dirname "$canonical")/.software-factory-opencode.XXXXXX")"; then
+      echo "  ! failed to create replacement for OpenCode symlink target $rel" >&2
+      return 73
+    fi
+    if ! cp "$src" "$tmp"; then
+      rm -f -- "$tmp"
+      echo "  ! failed to copy packaged OpenCode file $rel" >&2
+      return 73
+    fi
+    if ! chmod "$mode" "$tmp"; then
+      rm -f -- "$tmp"
+      echo "  ! failed to preserve mode for OpenCode symlink target $rel" >&2
+      return 73
+    fi
+    if ! mv "$tmp" "$canonical"; then
+      rm -f -- "$tmp"
+      echo "  ! failed to atomically refresh OpenCode symlink target $rel" >&2
+      return 73
+    fi
+    echo "  ~ refreshed OpenCode symlink target $rel" >&2
+    return 0
   fi
   if [[ ! -f "$dest" ]]; then
     echo "  ! refusing non-file $rel" >&2
@@ -644,12 +721,92 @@ cleanup_global_opencode_legacy() {
   done
 }
 
+# Shared Claude/Codex skill links remain available until an explicit, successful
+# repo-local OpenCode refresh authorizes cleanup for the confirmed host.
+cleanup_global_shared_legacy() {
+  local name path expected
+  [[ "$OPENCODE" -eq 1 && "$OPENCODE_INCOMPLETE" -eq 0 ]] || return 0
+  [[ -n "${HOME:-}" ]] || return 0
+  if [[ "$SOFTWARE_FACTORY_CLAUDE_PLUGIN_CONFIRMED" == "1" ]]; then
+    for name in implement-spec stage-ticket; do
+      path="$HOME/.claude/skills/$name"
+      [[ -L "$path" ]] || continue
+      expected="skills/$name"
+      if legacy_path_has_symlink_ancestor "$path" 0 "$HOME"; then
+        echo "  = preserved shared Claude skill link with symlink ancestor $path" >&2
+      elif legacy_link_matches_checkout_path "$path" "$expected"; then
+        rm -f -- "$path"
+        echo "  - removed legacy shared Claude skill link $path" >&2
+      else
+        echo "  = preserved unknown shared Claude skill link $path" >&2
+      fi
+    done
+  fi
+  if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" == "1" ]]; then
+    for name in implement-spec stage-ticket; do
+      path="$HOME/.agents/skills/$name"
+      [[ -L "$path" ]] || continue
+      expected="skills/$name"
+      if legacy_path_has_symlink_ancestor "$path" 0 "$HOME"; then
+        echo "  = preserved shared Codex skill link with symlink ancestor $path" >&2
+      elif legacy_link_matches_checkout_path "$path" "$expected"; then
+        rm -f -- "$path"
+        echo "  - removed legacy shared Codex skill link $path" >&2
+      else
+        echo "  = preserved unknown shared Codex skill link $path" >&2
+      fi
+    done
+  fi
+}
+
 # Remove files written by pre-0.2.1 installs while preserving unrelated config.
+legacy_path_is_selected_opencode() {
+  local rel="$1"
+  case "$rel" in
+    .agents/skills/implement-spec/*)
+      [[ -f "$SRC/skills/implement-spec/${rel#.agents/skills/implement-spec/}" ]]
+      ;;
+    .agents/skills/stage-ticket/*)
+      [[ -f "$SRC/skills/stage-ticket/${rel#.agents/skills/stage-ticket/}" ]]
+      ;;
+    .opencode/agents/*)
+      [[ -f "$SRC/adapters/opencode/agents/${rel#.opencode/agents/}" ]]
+      ;;
+    .opencode/commands/*)
+      [[ -f "$SRC/adapters/opencode/commands/${rel#.opencode/commands/}" ]]
+      ;;
+    .opencode/software-factory/loops.env)
+      [[ -f "$SRC/harness/loops.env" ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+legacy_opencode_assets_remain() {
+  local root path child
+  for root in .agents .opencode; do
+    path="$TARGET/$root"
+    [[ -e "$path" || -L "$path" ]] || continue
+    if [[ -L "$path" || ! -d "$path" ]]; then
+      return 0
+    fi
+    child="$(find "$path" -mindepth 1 ! -type d -print -quit 2>/dev/null || true)"
+    [[ -n "$child" ]] && return 0
+  done
+  return 1
+}
+
 remove_legacy_kit() {
   [[ "$MIGRATE_LEGACY" -eq 1 ]] || return 0
+  if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" != "1" ]]; then
+    CODEX_MIGRATION_INCOMPLETE=1
+    echo "  = preserving legacy Codex assets until Codex plugin installation is confirmed" >&2
+  fi
   local file="$TARGET/.codex/config.toml"
   local tmp
-  if [[ -f "$file" ]] && grep -Eq '(# (>>>|<<<) (agentic-harness|software-factory) implement-spec agents)' "$file"; then
+  if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" == "1" && -f "$file" ]] && grep -Eq '(# (>>>|<<<) (agentic-harness|software-factory) implement-spec agents)' "$file"; then
     if legacy_path_has_symlink_ancestor "$file" 0 "$TARGET"; then
       echo "  = preserved legacy Codex config with symlink ancestor: $file" >&2
     else
@@ -677,6 +834,19 @@ remove_legacy_kit() {
     [[ -z "$rel" || "$rel" == \#* ]] && continue
     actual="$TARGET/$rel"
     [[ -e "$actual" || -L "$actual" ]] || continue
+    if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" != "1" ]] && legacy_path_is_codex_owned "$rel"; then
+      echo "  = preserved legacy Codex asset until Codex plugin installation is confirmed: $rel" >&2
+      continue
+    fi
+    if [[ "$OPENCODE_CLEANUP_ALLOWED" != "1" ]] && legacy_path_is_opencode_owned "$rel"; then
+      OPENCODE_LEGACY_REMAINS=1
+      echo "  = preserved OpenCode-shared legacy asset until --opencode refresh succeeds: $rel" >&2
+      continue
+    fi
+    if [[ "$OPENCODE_CLEANUP_ALLOWED" == "1" ]] && legacy_path_is_selected_opencode "$rel"; then
+      echo "  = retained refreshed OpenCode asset: $rel" >&2
+      continue
+    fi
     remove=0
     if [[ -L "$actual" ]]; then
       while IFS=$'\t' read -r hash source; do
@@ -713,14 +883,28 @@ remove_legacy_kit() {
       echo "  = preserved non-file legacy path $rel" >&2
     fi
   done < <(awk -F '\t' '!seen[$1]++ && $1 !~ /^#/ && $1 != "" {print $1}' "$manifest_file")
+  if [[ "$OPENCODE_CLEANUP_ALLOWED" != "1" ]] && legacy_opencode_assets_remain; then
+    OPENCODE_LEGACY_REMAINS=1
+  fi
   for rel in .codex/prompts .codex/agents .codex .agents/skills/implement-spec .agents/skills/stage-ticket .agents/skills .agents .opencode/agents .opencode/commands .opencode/software-factory .opencode; do
+    if [[ "$OPENCODE_CLEANUP_ALLOWED" != "1" ]] && legacy_path_is_opencode_owned "$rel"; then
+      continue
+    fi
     rmdir "$TARGET/$rel" 2>/dev/null || true
   done
   if [[ "$LEGACY_MARKER_RECOGNIZED" -eq 1 ]]; then
-    rm -f -- "$LEGACY_MARKER"
-    echo "  - removed recognized legacy marker" >&2
+    if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" == "1" &&
+          ("$OPENCODE_CLEANUP_ALLOWED" == "1" ||
+           "$OPENCODE_LEGACY_REMAINS" == "0") ]]; then
+      rm -f -- "$LEGACY_MARKER"
+      echo "  - removed recognized legacy marker" >&2
+    else
+      echo "  = preserved legacy migration marker until --opencode refresh succeeds" >&2
+    fi
   fi
-  echo "  - removed legacy checkout-based runtime files" >&2
+  if [[ "$CODEX_MIGRATION_INCOMPLETE" -eq 0 && "$OPENCODE_CLEANUP_ALLOWED" -eq 1 ]]; then
+    echo "  - removed legacy checkout-based runtime files" >&2
+  fi
 }
 
 stamp_gitignore() {
@@ -737,32 +921,6 @@ stamp_gitignore() {
 mkdir -p "$TARGET/.claude"
 SETTINGS="$TARGET/.claude/settings.json"
 existing='{}'; [[ -f "$SETTINGS" ]] && existing="$(cat "$SETTINGS")"
-if [[ "$MIGRATE_LEGACY" -eq 1 ]]; then
-  existing="$(jq '
-    def official_legacy_marketplace:
-      if . == {source: {source: "github", repo: "aanojima/agentic-harness"}} then
-        true
-      elif type == "object" then
-        if (keys != ["source"] or (.source | type) != "object") then
-          false
-        elif (.source | keys) != ["ref", "repo", "source"] then
-          false
-        elif .source.source != "github" or .source.repo != "aanojima/agentic-harness" then
-          false
-        elif (.source.ref | type) != "string" then
-          false
-        else (.source.ref | length) > 0
-        end
-      else false
-      end;
-    if (.extraKnownMarketplaces["agentic-harness"] | official_legacy_marketplace) then
-      del(.extraKnownMarketplaces["agentic-harness"])
-    else . end
-    | if .enabledPlugins["agentic-harness@agentic-harness"] == true then
-        del(.enabledPlugins["agentic-harness@agentic-harness"])
-      else . end
-  ' <<<"$existing")"
-fi
 SETTINGS_TMP="$(mktemp "$(dirname "$SETTINGS")/.software-factory-settings.XXXXXX")"
 if ! jq \
   --arg mkt "$MKT_NAME" --arg repo "$MKT_REPO" --arg ref "$MKT_REF" --arg enable "$ENABLE_KEY" '
@@ -776,7 +934,6 @@ safe_replace "$SETTINGS" "$SETTINGS_TMP"
 echo "  ~ .claude/settings.json (marketplace + enabledPlugins)" >&2
 
 # --- 2 · Shared project rules; runtime workflows come from plugins ---
-remove_legacy_kit
 stamp_block "$TARGET/AGENTS.md"
 stamp_block "$TARGET/CLAUDE.md"
 
@@ -812,6 +969,20 @@ if [[ "$OPENCODE" -eq 1 ]]; then
     OPENCODE_INCOMPLETE=1
   fi
 fi
+if [[ "$OPENCODE" -eq 1 && "$OPENCODE_INCOMPLETE" -eq 0 ]]; then
+  if [[ "$SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED" == "1" ||
+        "$SOFTWARE_FACTORY_CLAUDE_PLUGIN_CONFIRMED" == "1" ]]; then
+    OPENCODE_CLEANUP_ALLOWED=1
+  else
+    OPENCODE_INCOMPLETE=1
+    echo "  = preserved legacy OpenCode state: installed plugin host confirmation is required" >&2
+  fi
+fi
+if [[ "$OPENCODE_INCOMPLETE" -eq 0 ]]; then
+  remove_legacy_kit
+else
+  echo "  = preserved legacy assets until --opencode refresh succeeds" >&2
+fi
 stamp_gitignore
 
 # --- 4 · state (seeded on init only; update leaves it alone) ---
@@ -830,22 +1001,58 @@ if [[ "$OPENCODE_INCOMPLETE" -ne 0 ]]; then
 fi
 
 # --- 5 · version marker ---
-if ! validate_local_file_destination "$MARKER"; then
+if [[ "$CODEX_MIGRATION_INCOMPLETE" -eq 0 ]]; then
+  if ! validate_managed_destination "$MARKER" ||
+     ! validate_directory_ancestor "$(dirname "$MARKER")" "current marker"; then
+    exit 73
+  fi
+  MARKER_SOURCE="$MARKER"
+  if [[ -L "$MARKER" ]]; then
+    if ! MARKER_SOURCE="$(legacy_canonical_dangling_leaf "$MARKER" 2>/dev/null)" ||
+       [[ ! -f "$MARKER_SOURCE" ]]; then
+      echo "refusing unsafe current marker symlink: $MARKER" >&2
+      exit 73
+    fi
+  fi
+  if ! MARKER_TMP="$(mktemp "$(dirname "$MARKER_SOURCE")/.software-factory-version.XXXXXX")"; then
+    echo "failed to create current marker replacement: $MARKER" >&2
+    exit 73
+  fi
+  if ! {
+    echo "$VERSION"
+    echo "plugin:  $ENABLE_KEY"
+    echo "ref:     $MKT_REF"
+    echo "stamped: $(date +%F)"
+    echo "engine:  $(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  } > "$MARKER_TMP"; then
+    rm -f -- "$MARKER_TMP"
+    echo "failed to write current marker replacement: $MARKER" >&2
+    exit 73
+  fi
+  if ! safe_replace "$MARKER" "$MARKER_TMP"; then
+    rm -f -- "$MARKER_TMP"
+    exit 73
+  fi
+  echo "  ~ .claude/.software-factory-version → $VERSION" >&2
+else
+  echo "  = preserved migration marker until Codex plugin installation is confirmed" >&2
+fi
+
+if [[ "$CODEX_MIGRATION_INCOMPLETE" -ne 0 ]]; then
+  echo "✗ legacy Codex migration incomplete; rerun after Codex plugin installation is confirmed." >&2
+  exit 1
+fi
+
+if ! cleanup_legacy_settings; then
+  echo "✗ failed to finalize legacy Claude settings migration." >&2
   exit 73
 fi
-{
-  echo "$VERSION"
-  echo "plugin:  $ENABLE_KEY"
-  echo "ref:     $MKT_REF"
-  echo "stamped: $(date +%F)"
-  echo "engine:  $(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-} > "$TARGET/.claude/.software-factory-version"
-echo "  ~ .claude/.software-factory-version → $VERSION" >&2
 
 # Global OpenCode fallbacks are destructive migration state. Remove them only
 # after the complete explicit OpenCode run and every project write succeeded.
-if [[ "$OPENCODE" -eq 1 && "$OPENCODE_INCOMPLETE" -eq 0 ]]; then
+if [[ "$OPENCODE_CLEANUP_ALLOWED" -eq 1 ]]; then
   cleanup_global_opencode_legacy
+  cleanup_global_shared_legacy
 fi
 
 echo "  → version: $OLD_VER → $VERSION   ref: $OLD_REF → $MKT_REF" >&2

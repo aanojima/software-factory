@@ -16,8 +16,10 @@ classifies each task and runs it through the right workstream. Claude Code reads
    The host session owns the workflow, plan, risk, gates, integration, and
    final response. Exactly one implementation-worker owns worktree writes for
    implementation and repairs; explorers and reviewers remain read-only.
-   The host writes directly only for a genuinely trivial DIRECT change or
-   unavailable native delegation, and states why.
+   The host writes directly only for a genuinely trivial DIRECT change and
+   states why. A native implementation-worker launch failure retries or stops
+   within the applicable cap; it never falls back to host implementation or
+   another provider.
 7. Use native subagents from the current host by default. Use an external CLI
    bridge only when the user explicitly requests mixed Claude + Codex review.
 

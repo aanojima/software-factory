@@ -34,8 +34,15 @@ validate_codex_blocks() {
 }
 
 # This read-only check must precede plugin-manager calls and any legacy cleanup.
-CODEX_CONFIG_PREFLIGHT="${CODEX_HOME:-$HOME/.codex}/config.toml"
+CODEX_ROOT="${CODEX_HOME:-$HOME/.codex}"
+CODEX_CONFIG_PREFLIGHT="$CODEX_ROOT/config.toml"
 CODEX_CONFIG_PREFLIGHT_TARGET=""
+if command -v codex >/dev/null; then
+  if legacy_path_has_symlink_ancestor "$CODEX_ROOT" 1 /; then
+    echo "refusing Codex home through symlink ancestor: $CODEX_ROOT" >&2
+    exit 73
+  fi
+fi
 if command -v codex >/dev/null && [[ -e "$CODEX_CONFIG_PREFLIGHT" || -L "$CODEX_CONFIG_PREFLIGHT" ]]; then
   if ! CODEX_CONFIG_PREFLIGHT_TARGET="$(legacy_canonical_dangling_leaf "$CODEX_CONFIG_PREFLIGHT" 2>/dev/null)" || \
      [[ ! -f "$CODEX_CONFIG_PREFLIGHT_TARGET" ]]; then
@@ -140,11 +147,15 @@ remove_legacy_link() {
 }
 
 cleanup_claude_legacy() {
-  local name
+  local name path
   for name in implement-spec stage-ticket route pr-watch implement-ticket; do
-    if [[ "$GLOBAL_OPENCODE_LEGACY_REMAINS" -eq 1 &&
-          ( "$name" == implement-spec || "$name" == stage-ticket ) ]]; then
-      echo "  = preserved shared Claude skill link $HOME/.claude/skills/$name" >&2
+    if [[ "$name" == implement-spec || "$name" == stage-ticket ]]; then
+      path="$HOME/.claude/skills/$name"
+      if legacy_path_has_symlink_ancestor "$path" 0 "$HOME"; then
+        echo "  = preserved shared Claude skill link with symlink ancestor $path" >&2
+      else
+        echo "  = preserved shared Claude skill link $path" >&2
+      fi
     else
       remove_legacy_link "$HOME/.claude/skills/$name" "skills/$name" "$HOME"
     fi
@@ -209,12 +220,13 @@ cleanup_codex_legacy() {
     fi
   fi
 
-  local name
+  local name path
   for name in implement-spec stage-ticket; do
-    if [[ "$GLOBAL_OPENCODE_LEGACY_REMAINS" -eq 1 ]]; then
-      echo "  = preserved shared Codex skill link $HOME/.agents/skills/$name" >&2
+    path="$HOME/.agents/skills/$name"
+    if legacy_path_has_symlink_ancestor "$path" 0 "$HOME"; then
+      echo "  = preserved shared Codex skill link with symlink ancestor $path" >&2
     else
-      remove_legacy_link "$HOME/.agents/skills/$name" "skills/$name" "$HOME"
+      echo "  = preserved shared Codex skill link $path" >&2
     fi
   done
 }
@@ -256,8 +268,10 @@ fi
 if [[ "$CLAUDE_INSTALLED" -eq 1 ]]; then cleanup_claude_legacy; fi
 if [[ "$CODEX_INSTALLED" -eq 1 ]]; then cleanup_codex_legacy; fi
 
-# Shared PATH links are removable only when both native managers are present,
-# both plugin installs succeed, and no recognized global OpenCode link remains.
+# PATH links are removable only when both native managers are present, both
+# plugin installs succeed, and no recognized global OpenCode link remains.
+# Shared implement-spec and stage-ticket skill links stay until init.sh sees a
+# successful repo-local OpenCode refresh with host confirmation.
 if [[ "$CLAUDE_AVAILABLE" -ne 1 || "$CODEX_AVAILABLE" -ne 1 ||
       "$CLAUDE_INSTALLED" -ne 1 || "$CODEX_INSTALLED" -ne 1 ]]; then
   echo "  = preserving shared PATH links: both Claude and Codex managers must be present and install successfully" >&2

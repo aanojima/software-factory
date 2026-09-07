@@ -1,6 +1,7 @@
 # Implement, verify, advise — shared core
 
-The same three steps run everywhere code gets written and pushed, whether
+The same writer → verifier → advisory sequence runs everywhere code gets written
+and pushed, whether
 that's the first commit before a PR exists (`/route`'s DIRECT/STANDARD/HEAVY)
 or a follow-up commit on a PR that's already open and being watched
 (`pr-intake`'s STANDARD dispatch and HEAVY apply-decision dispatch). Only the
@@ -22,22 +23,47 @@ The target repository is not a source of plugin configuration.
 
 1. Except for DIRECT, the host dispatches exactly one implementation worker
    with the complete specification or approved plan, explicit allowed paths,
-   acceptance criteria, focused verification command, and resolved cap/model
-   values. STANDARD and HEAVY always retain exactly-one-worker semantics.
-   DIRECT uses the host-write exception documented in `../SKILL.md` for a
-   genuinely trivial change, with the reason recorded.
+   acceptance criteria, smallest relevant focused checks, and resolved cap/model
+   values.
+   STANDARD and HEAVY always retain exactly-one-worker semantics. DIRECT uses
+   the host-write exception documented in `../SKILL.md` for a genuinely trivial
+   change, with the reason recorded.
    Claude uses the plugin-bundled `implementation-worker`, Codex uses its
    built-in worker subagent with `CODEX_EXEC_MODEL`, and optional OpenCode uses
    its bundled repo-local worker. The worker may read, edit allowed paths, and
-   run focused verification, but may not redesign, delegate, commit, push,
-   publish, or open a PR. Repairs return to the same healthy worker; only one
-   writer is active. The host writes directly only for a genuinely trivial
-   DIRECT change or when native delegation is unavailable, and records why.
-2. Discover and run the same test command CI itself runs for this repo —
-   check the relevant workflow file or the repo's existing test
-   scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
-   (`harness/loops.env`).
-3. After final verification and freeze, run the required advisory pass in
+   run only the smallest relevant focused checks while editing; do not use the
+   full suite unless it is the only meaningful focused check. It may not
+   redesign, delegate, commit, push, publish, or open a PR. Repairs return to
+   the same healthy worker; only one writer is active. The host writes directly
+   only for a genuinely trivial DIRECT change and records why. A native
+   implementation-worker launch failure retries or stops within
+   `TEST_LOOP_CAP`; it never falls back to host implementation or silently
+   switches providers.
+   For DIRECT, non-writing actions remain inline; a trivial host repository
+   edit is the only write; steps 2–3 still run exactly once before any commit or push.
+2. After all writers are terminal, the host freezes the complete candidate,
+   including its immutable base and any untracked files. Resolve the same
+   authoritative final command CI uses for this repo, including integration and
+   acceptance checks, then dispatch exactly one dedicated verification agent
+   with the frozen package identity, `cwd`, exact command, acceptance criteria,
+   and `TEST_LOOP_CAP=<value>`. Claude uses the bundled `verification-agent`;
+   Codex uses one fresh built-in `default` subagent with the literal
+   `CODEX_EXEC_MODEL` value, never a named or global Codex role; optional
+   OpenCode uses its bundled repo-local `verification-agent`. The verifier is
+   read-only, runs the supplied command once, and reports command/result
+   evidence. The host confirms the candidate identity is unchanged afterward
+   and does not rerun the same authoritative command on identical bytes. A
+   verifier command failure or mandatory post-verifier package identity
+   mismatch invalidates verification. For worker routes, return to the single
+   implementation worker within `TEST_LOOP_CAP`; after repair, refreeze and
+   dispatch a fresh verifier. For a trivial DIRECT host edit, return to the
+   same sole host writer under the documented DIRECT exception within
+   `TEST_LOOP_CAP`, then refreeze and dispatch a fresh verifier; never spawn
+   an implementation worker solely for DIRECT recovery. Review starts only
+   after authoritative verification passes: the command succeeded and the
+   frozen package identity is unchanged.
+3. After the verifier passes and the host confirms the frozen candidate is
+   unchanged, run the required advisory pass in
    `../../implement-spec/references/review-contract.md` before any blocking
    panel. It is inspection-only, cheap, non-blocking, and never loops; keep
    the Ponytail and CodeRabbit invocation details in that shared contract.

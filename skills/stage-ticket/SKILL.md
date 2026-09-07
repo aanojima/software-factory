@@ -46,12 +46,16 @@ State the decision in one line before touching anything:
 ## 2 · Follow the route up to (not through) a PR
 
 - **DIRECT**: implement directly on a branch (never main). This is the
-  genuinely trivial host-write exception; state that reason. No blocking panel
-  — tests are the gate.
+  genuinely trivial host-write exception; state that reason. If the mandatory
+  post-verifier package identity differs, return to the same sole host writer
+  under this exception within `TEST_LOOP_CAP`, then refreeze and dispatch a
+  fresh verifier; do not spawn an implementation worker solely for DIRECT
+  recovery. No blocking panel — tests are the gate. After the host edit, skip
+  worker dispatch and begin at freeze step 2 below.
 - **STANDARD**: if the plan depends on unknowns, delegate exploration to a
   native read-only explorer first rather than guessing. Draft a one-line plan,
   then dispatch exactly one implementation worker with the complete plan,
-  allowed paths, focused check, and literal cap/model values.
+  allowed paths, smallest relevant focused checks, and literal cap/model values.
 - **HEAVY**: delegate exploration to a native read-only explorer. Grill the task to a
   crisp spec, plan at high effort, then ask a fresh, read-only native subagent
   to review the plan against the task/spec and exploration evidence. In Codex
@@ -66,28 +70,52 @@ external CLI bridge only when the user explicitly requests mixed Claude +
 Codex review. A failed native launch stops or retries within the existing cap;
 it never silently changes providers.
 
-Then, for every route that reaches this point, run the same core in order:
+Then run the same completion core in order. Step 1 applies only to STANDARD and
+HEAVY; DIRECT begins at step 2 after its host edit.
 
-1. Dispatch exactly one implementation worker for the fix or feature. Claude
+1. For STANDARD or HEAVY, dispatch exactly one implementation worker for the
+   fix or feature. DIRECT never dispatches an implementation worker. Claude
    uses the plugin-bundled `implementation-worker`, Codex uses its built-in
    worker with the literal `CODEX_EXEC_MODEL` from the resolved `CAPS_SOURCE`,
    and optional OpenCode uses its bundled repo-local worker. The assignment
    must include the approved plan, explicit allowed paths, acceptance criteria,
-   focused verification command, and literal `TEST_LOOP_CAP=<value>` and model
-   values. The worker may read, edit allowed paths, and run focused checks, but
-   may not redesign, delegate, commit, push, publish, or open a PR. Repairs
-   return to the same healthy worker, one writer at a time. The host writes only
-   for a genuinely trivial DIRECT change or unavailable native delegation and
-   states why.
-2. Discover and run the same test command CI itself runs for this repo —
-   check the relevant workflow file or the repo's existing test
-   scripts/Makefile, don't guess a different one. Capped at `TEST_LOOP_CAP`
-   from the resolved `CAPS_SOURCE`.
-3. After final verification and freeze, follow the required advisory pass in
-   `../implement-spec/references/review-contract.md` before the blocking
-   panel. It is inspection-only, cheap, non-blocking, and never loops; that
-   shared contract owns the Ponytail and CodeRabbit invocation details and
-   visible skip handling.
+   smallest relevant focused checks, and literal `TEST_LOOP_CAP=<value>` and
+   model values. The
+   worker may read, edit allowed paths, and run only the smallest relevant
+   focused checks while editing; do not use the full suite unless it is the only
+   meaningful focused check. It may not redesign, delegate, commit, push,
+   publish, or open a PR. Repairs return to the same healthy worker, one writer
+   at a time. The host writes only for a genuinely trivial DIRECT change and
+   states why. A native implementation-worker launch failure retries or stops
+   within `TEST_LOOP_CAP`; it never falls back to host implementation or
+   silently switches providers.
+2. After all writers are terminal, the host freezes the complete candidate,
+   including its immutable base and any untracked files. Resolve the same
+   authoritative final command CI uses for this repo, including integration and
+   acceptance checks, then dispatch exactly one dedicated verification agent
+   with the frozen package identity, `cwd`, exact command, acceptance criteria,
+   and `TEST_LOOP_CAP=<value>`. Claude uses the bundled `verification-agent`;
+   Codex uses one fresh built-in `default` subagent with the literal
+   `CODEX_EXEC_MODEL` value, never a named or global Codex role; optional
+   OpenCode uses its bundled repo-local `verification-agent`. The verifier is
+   read-only, runs the supplied command once, and reports command/result
+   evidence. The host confirms the candidate identity is unchanged afterward
+   and does not rerun the same authoritative command on identical bytes. A
+   verifier command failure or mandatory post-verifier package identity
+   mismatch invalidates verification. For worker routes, return to the single
+   implementation worker within `TEST_LOOP_CAP`; after repair, refreeze and
+   dispatch a fresh verifier. For a trivial DIRECT host edit, return to the
+   same sole host writer under the documented DIRECT exception within
+   `TEST_LOOP_CAP`, then refreeze and dispatch a fresh verifier; never spawn
+   an implementation worker solely for DIRECT recovery. Review starts only
+   after authoritative verification passes: the command succeeded and the
+   frozen package identity is unchanged.
+3. After the verifier passes and the host confirms the frozen candidate is
+   unchanged, follow the required advisory pass in
+   `../implement-spec/references/review-contract.md` before the blocking panel.
+   It is inspection-only, cheap, non-blocking, and never loops; that shared
+   contract owns the Ponytail and CodeRabbit invocation details and visible
+   skip handling.
 4. Blocking panel by tier, with a capped loop back to step 1 on any blocking
    finding:
    - DIRECT: none — tests are the gate.

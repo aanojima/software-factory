@@ -1,9 +1,12 @@
 # Independent review contract
 
-Reviewers must be read-only and independent of the writer. For an initial
-review, give them exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. The diff is supplied in full. For a later review, give them those same inputs plus the host-owned finding ledger and a repair delta when available. The ledger and repair delta provide context;
-they do not replace fresh independent inspection. Do not give reviewers the
-writer's private reasoning or a suggested verdict.
+Reviewers must be read-only and independent of the writer. Every fresh review
+receives exactly these three semantic inputs: the original user request or
+authoritative specification, the approved plan, and the frozen diff. The frozen
+diff is the complete newly frozen candidate. The host keeps the finding ledger
+and repair provenance for its own reconciliation of verdicts; it never supplies
+either to reviewers. Do not give reviewers the writer's private reasoning or a
+suggested verdict.
 
 The approved plan freezes the supported states and assumptions relevant to the
 change. Reviewers assess only requirements supported by the original request or
@@ -12,17 +15,19 @@ requirements.
 
 Review is inspection, not verification. Reviewers must not run tests, builds,
 linters, validators, or other verification commands. They assess only these
-three supplied inputs and report findings. Verification and its evidence
-belong to the preceding workflow step.
+three supplied inputs and report findings. The dedicated verifier runs the
+authoritative command before review; verification and its evidence belong to
+that preceding workflow step.
 
 ## Required advisory pass
 
-After final verification succeeds, the host freezes the complete candidate
-diff, including its immutable base and any untracked files, and runs this
-advisory pass once before launching any blocking reviewer. A repair round
-repeats verification and freeze first, then runs one pass for the new frozen
-candidate. Both advisories receive the original user request or authoritative
-specification, the approved plan, and that same complete frozen diff.
+After the dedicated verifier succeeds and the host confirms the frozen package
+identity is unchanged, the host runs this advisory pass once against the
+complete candidate diff, including its immutable base and any untracked files,
+before launching any blocking reviewer. A repair round repeats verification
+and freeze first, then runs one pass for the new frozen candidate. Both
+advisories receive the original user request or authoritative specification,
+the approved plan, and that same complete frozen diff.
 
 The advisory pass is inspection-only and nonblocking. Findings are recorded
 and surfaced as advisory output; they never change verification, select or
@@ -62,14 +67,15 @@ invocation, not a native subagent or a plugin skill.
 The host keeps a compact finding ledger across rounds. Each entry retains a
 stable finding identity and root cause, a disposition (`new`, `resolved`,
 `unchanged`, `regressed`, `disputed`, or `superseded`), the repair or evidence,
-and the primary adjudication. Later reviewer assignments receive that ledger
-with the original request or specification, approved plan, frozen full diff,
-and repair delta when available.
+and the primary adjudication. The host uses the ledger and repair provenance
+only when reconciling verdicts. Every subsequent reviewer independently
+examines the same three inputs: the original request or specification, the
+approved plan, and the newly frozen complete diff.
 
-Later reviews prioritize prior blockers and repaired areas. A new blocker
-anywhere must provide all four parts of the concrete blocker bar: a concrete supported precondition, a directly violated acceptance criterion or invariant,
-material impact, and the minimum fix. The host adjudicates speculative,
-out-of-scope, or style items as residual or nonblocking instead of
+A new blocker anywhere must provide all four parts of the concrete blocker bar:
+a concrete supported precondition, a directly violated acceptance criterion or
+invariant, material impact, and the minimum fix. The host adjudicates
+speculative, out-of-scope, or style items as residual or nonblocking instead of
 automatically repairing them.
 
 ## Required review lenses

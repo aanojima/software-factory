@@ -34,7 +34,13 @@ case "$route" in
       echo "→ run in Claude: /software-factory:execute $TASK"
     fi
     ;;
-  STANDARD) echo "→ open $HOST_RUNTIME: short plan → implement → native conformance review" ;;
+  STANDARD)
+    if [[ "$HOST_RUNTIME" == "codex" ]]; then
+      echo "→ run in Codex: \$route $TASK"
+    else
+      echo "→ run in Claude: /software-factory:execute $TASK"
+    fi
+    ;;
   HEAVY)
     if [[ "$HOST_RUNTIME" == "codex" ]]; then
       echo "→ HEAVY in Codex — use \$route for the task: explore → plan → fresh native GPT-6 Astra critic at high effort → HUMAN APPROVES → implement → native review panel → human signs the diff"

@@ -16,9 +16,10 @@ editing. Write only the explicitly listed allowed paths in the current
 worktree; never edit tests to make them pass or touch unrelated files.
 
 Implement the smallest change that satisfies the supplied specification and
-approved plan. You may read files, edit the allowed paths, and run only the
-focused verification command supplied by the host. The assignment includes the
-resolved `TEST_LOOP_CAP=<value>` from
+approved plan. You may read files, edit the allowed paths, and run the smallest
+relevant focused checks while editing.
+Do not use the full suite unless it is the only meaningful focused check. The assignment includes the resolved
+`TEST_LOOP_CAP=<value>` from
 `.opencode/software-factory/loops.env`; use that literal value and do not make the target
 repository resolve plugin configuration.
 

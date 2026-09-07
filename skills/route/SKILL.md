@@ -53,7 +53,11 @@ know yet stay `-`, outcome starts `pending`):
 - **DIRECT** — Implement directly (from a branch, never push to main), then
   follow `references/implement-and-verify.md`'s core + its T0/DIRECT gate.
   This is the genuinely trivial host-write exception; say that the host is
-  writing directly. Keep it tight; this is a one-shot.
+  writing directly. Keep it tight; this is a one-shot. If the mandatory
+  post-verifier package identity differs, return to the same sole host writer
+  under this exception within `TEST_LOOP_CAP`, then refreeze and dispatch a
+  fresh verifier; never spawn an implementation worker solely for DIRECT
+  recovery.
 - **STANDARD** — If the plan depends on unknowns (existing patterns, whether
   something already handles this), delegate exploration to a native read-only
   explorer first rather than guessing. Draft a short plan (one-liner for T1, plan mode
@@ -89,17 +93,43 @@ Give each reviewer the complete inspection-only lens assignment with exactly the
 only those inputs; never edit or run tests, builds, linters, validators, or
 other verification commands.
 
-Implementation and repair turns have one writer: Claude dispatches the
-plugin-bundled `implementation-worker`; Codex dispatches its built-in worker
-subagent with the complete assignment and the literal `CODEX_EXEC_MODEL` value
-from `../../harness/loops.env`; OpenCode, when enabled, dispatches the bundled
-repo-local `.opencode/agents/implementation-worker.md`. The assignment must
-list the allowed paths, approved plan, acceptance criteria, focused check, and
-literal cap/model values. Workers may read, edit those paths, and run the
-focused check, but may not redesign, delegate, commit, push, publish, or open a
-PR. Repairs return to the same healthy worker, one writer at a time. The host
-may write only for a genuinely trivial DIRECT change or when native delegation
-is unavailable, and must state which exception applies.
+Implementation, verification, and repair turns have one writer plus one final
+verifier. Claude dispatches the plugin-bundled `implementation-worker`; Codex
+dispatches its built-in worker subagent with the complete assignment and the
+literal `CODEX_EXEC_MODEL` value from `../../harness/loops.env`; OpenCode, when
+enabled, dispatches the bundled repo-local
+`.opencode/agents/implementation-worker.md`. The assignment must list the
+allowed paths, approved plan, acceptance criteria, smallest relevant focused
+checks, and literal
+cap/model values. Workers may read, edit those paths, and run only the smallest
+relevant focused checks while editing; do not use the full suite unless it is
+the only meaningful focused check. Workers may not redesign, delegate,
+commit, push, publish, or open a PR. Repairs return to the same healthy worker,
+one writer at a time. The host may write only for a genuinely trivial DIRECT
+change and must state that exception. A native implementation-worker launch
+failure must retry or stop within `TEST_LOOP_CAP`; it never falls back to host
+implementation or silently switches providers.
+
+After all writers are terminal, the host freezes the complete candidate,
+including its immutable base and any untracked files, and supplies the exact
+authoritative final verification command, including integration and acceptance
+checks, to exactly one verifier. Claude uses the bundled `verification-agent`;
+Codex uses one fresh built-in `default` subagent with the literal
+`CODEX_EXEC_MODEL` value, never a named or global Codex role; OpenCode uses its
+bundled repo-local `.opencode/agents/verification-agent.md`. The assignment
+includes the frozen package identity, `cwd`, exact command, acceptance
+criteria, and `TEST_LOOP_CAP=<value>`. The verifier is read-only, runs that
+command once, and reports command/result evidence. The host confirms the
+candidate identity is unchanged afterward and does not rerun the same
+authoritative command on identical bytes. A verifier command failure or
+mandatory post-verifier package identity mismatch invalidates verification.
+For worker routes, return to the single implementation worker within
+`TEST_LOOP_CAP`; after repair, refreeze and dispatch a fresh verifier. For a
+trivial DIRECT host edit, return to the same sole host writer under the
+documented DIRECT exception within `TEST_LOOP_CAP`, then refreeze and dispatch
+a fresh verifier; never spawn an implementation worker solely for DIRECT
+recovery. Review starts only after authoritative verification passes: the
+command succeeded and the frozen package identity is unchanged.
 - **RALPH** — Write `tasks/prd.md` plus one spec file per unit in
   `tasks/todo/`, then hand off to the bundled capped loop at
   `../../harness/ralph.sh`, resolved from this skill directory. Do not

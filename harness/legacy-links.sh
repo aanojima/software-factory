@@ -22,10 +22,12 @@ legacy_sha256_file() {
 legacy_path_has_symlink_ancestor() {
   local path="$1" include_leaf="${2:-0}" trust_root="${3:-}" current
   [[ "$path" = /* && "$trust_root" = /* ]] || return 0
-  case "$path" in
-    "$trust_root"|"$trust_root"/*) ;;
-    *) return 0 ;;
-  esac
+  if [[ "$trust_root" != / ]]; then
+    case "$path" in
+      "$trust_root"|"$trust_root"/*) ;;
+      *) return 0 ;;
+    esac
+  fi
   current="$path"
   if [[ "$include_leaf" != 1 ]]; then
     current="$(dirname "$current")"

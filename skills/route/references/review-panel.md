@@ -2,23 +2,21 @@
 
 Reuses the lens and output conventions in
 `../../implement-spec/references/review-contract.md`: reviewers are
-read-only and independent of the writer. Initial reviews receive exactly these
-semantic inputs: the original user request or authoritative specification, the
-approved plan, and the frozen full diff. Later reviews also receive the
-host-owned finding ledger and a repair delta when available. They do not
-receive the writer's private reasoning or a validation task, and minor findings
-never block completion. They inspect those supplied inputs and report findings;
-they do not run tests, builds, linters, validators, or other verification
-commands.
+read-only and independent of the writer. Every fresh review receives exactly these three semantic inputs:
+the original user request or authoritative specification, the approved plan, and the newly frozen complete diff. The host
+keeps the finding ledger and repair provenance for reconciling verdicts and
+never supplies either to reviewers. They do not receive the writer's private
+reasoning or a validation task, and minor findings never block completion.
+They inspect those supplied inputs and report findings; they do not run tests,
+builds, linters, validators, or other verification commands.
 
 The approved plan freezes the supported states and assumptions relevant to the
-change, so reviewers do not invent unsupported requirements. Later reviews
-prioritize prior blockers and repaired areas. A new blocker anywhere must give
+change, so reviewers do not invent unsupported requirements. Every fresh
+reviewer receives only the three inputs above. A new blocker anywhere must give
 a concrete supported precondition, a directly violated acceptance criterion or
-invariant, material impact, and the minimum fix. The host keeps the compact
-finding ledger across rounds and adjudicates speculative, out-of-scope, or
-style items as residual or nonblocking. Ledger context never replaces fresh,
-independent inspection where required.
+invariant, material impact, and the minimum fix. The host uses its ledger only
+when reconciling verdicts and adjudicates speculative, out-of-scope, or style
+items as residual or nonblocking.
 
 The advisory pass is defined once in
 `../../implement-spec/references/review-contract.md`. Every route follows

@@ -79,35 +79,63 @@ The plan must trace every acceptance criterion to code changes and validation ev
 The host remains the orchestrator and owns the plan, risk, gates, integration,
 and final response. Dispatch exactly one implementation worker for the current
 worktree with the specification snapshot, approved plan, acceptance criteria,
-explicit allowed paths, focused verification command, and the literal
+explicit allowed paths, smallest relevant focused checks, and the literal
 `TEST_LOOP_CAP=<value>` plus the selected model (`EXEC_MODEL=<value>` for
 Claude or `CODEX_EXEC_MODEL=<value>` for Codex) resolved from
 the resolved `CAPS_SOURCE`. Claude uses the plugin-bundled
 `implementation-worker`; Codex uses its built-in worker subagent; optional
 OpenCode uses the bundled repo-local implementation worker.
 
-The worker may read, edit only the allowed paths, and run focused verification.
-It may not redesign scope, delegate, commit, push, publish, or open a PR.
-Repairs return to the same healthy implementation worker and only one writer
-may be active at a time. Explorers and reviewers remain read-only. The host
-may write only for a genuinely trivial DIRECT change or when native delegation
-is unavailable, and must state the reason. Preserve unrelated user changes.
+The worker may read, edit only the allowed paths, and run the smallest relevant
+focused checks while editing. Do not use the full suite unless it is the only
+meaningful focused check. It may not redesign scope,
+delegate, commit, push, publish, or open a PR. Repairs return to the same
+healthy implementation worker and only one writer may be active at a time.
+Explorers and reviewers remain read-only. The host may write only for a
+genuinely trivial DIRECT change and must state the reason. A native
+implementation-worker launch failure retries or stops within `TEST_LOOP_CAP`;
+it never falls back to host implementation or silently switches providers.
+Preserve unrelated user changes.
 
-### 5. Validate behavior and the goal
+### 5. Final verification and goal
+
+After every writer is terminal, the host freezes the complete candidate,
+including its immutable base and any untracked files, and resolves the
+repository's authoritative final verification command. That command must cover
+integration and acceptance checks. Dispatch exactly one dedicated verification
+agent against that frozen candidate with the exact command, frozen package
+identity, `cwd`, acceptance criteria, and the resolved `TEST_LOOP_CAP=<value>`.
+
+Claude uses the bundled `verification-agent`. Codex uses one fresh built-in
+`default` subagent with the literal `CODEX_EXEC_MODEL` value from the resolved
+`CAPS_SOURCE`; never use a named or global Codex role for verification. OpenCode
+uses its bundled repo-local `verification-agent`. The verifier is read-only,
+runs the supplied command once, and reports command/result evidence. The host
+must confirm that the frozen package identity is unchanged after the verifier
+returns and must not rerun the same authoritative command on identical bytes.
+
+A verifier command failure or mandatory post-verifier package identity
+mismatch invalidates verification. For worker routes, return to the single
+implementation worker within `TEST_LOOP_CAP`; after repair, refreeze the
+candidate and dispatch a fresh verifier. For a trivial DIRECT host edit,
+return to the same sole host writer under the documented DIRECT exception
+within `TEST_LOOP_CAP`, then refreeze and dispatch a fresh verifier; never
+spawn an implementation worker solely for DIRECT recovery. Review starts only
+after authoritative verification passes: the command succeeded and the frozen
+package identity is unchanged.
 
 Read `references/goal-validation.md`. Write `validation.json` using
-`schemas/validation.schema.json`. Verification is a separate host workflow
-step after the worker's focused check; run the repository's deterministic
-command with the exact `TEST_LOOP_CAP=<value>` resolved from
-the resolved `CAPS_SOURCE`.
+`schemas/validation.schema.json`, recording the verifier result and concrete
+evidence for each acceptance criterion.
 
 Passing tests is necessary but not sufficient. For every acceptance criterion, record status and concrete evidence. Mark `goal_satisfied=true` only when every required criterion passes and no material regression remains.
 
 ### 6. Obtain independent review
 
-Read `references/review-contract.md`. After final verification succeeds,
-freeze the complete candidate diff and run the required advisory pass from
-that contract. Run it before launching any blocking reviewer. Treat
+Read `references/review-contract.md`. After the verifier passes and the host
+confirms the package identity is unchanged, use that complete frozen candidate
+diff for the required advisory pass from that contract. Run it before launching
+any blocking reviewer. Treat
 conformance, security, and adversarial review as lens assignments rather than
 required custom agent names. Claude may use the matching plugin agents. Codex
 must use a fresh built-in `default`

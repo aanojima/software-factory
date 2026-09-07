@@ -31,13 +31,34 @@ with `gh extension install aanojima/gh-pr-monitor` when missing. It watches the
 PR event-driven instead of hand-rolled polling.
 
 When intake dispatches implementation or repair work, it uses exactly one
-implementation worker with the complete event, diff, allowed paths, focused
-check, literal `TEST_LOOP_CAP=<value>`, and the resolved fix-worker model.
+implementation worker. The worker assignment contains only the event or
+finding, explicit allowed paths, acceptance criteria, smallest relevant focused
+checks, literal `TEST_LOOP_CAP=<value>`, and the resolved fix-worker model.
 Claude uses the plugin-bundled worker, Codex uses its built-in worker with the
 literal `CODEX_EXEC_MODEL=<value>`, and optional OpenCode uses its bundled
 repo-local worker. Workers may edit only supplied paths and may not delegate,
-redesign, commit, push, publish, or open a PR; repairs return to that worker
-when healthy.
+redesign, commit, push, publish, open a PR, freeze, verify, review, or run
+advisories; they run the supplied focused checks and return terminal. Repairs
+return to that worker when healthy. After terminality, intake owns candidate
+freeze, dedicated verification, identity recheck, advisories, and commit/push.
+For worker routes, a verifier command failure or mandatory post-verifier
+package identity mismatch invalidates verification and returns to the same
+single implementation worker within `TEST_LOOP_CAP`; after that worker returns
+terminal, intake refreezes and dispatches a fresh verifier.
+
+Non-writing DIRECT actions stay inline. A DIRECT repository edit uses the
+documented trivial host-write exception, then follows the shared core: freeze
+the complete diff, run the authoritative command once through exactly one
+dedicated read-only verifier, confirm the frozen identity, and run the visible
+nonblocking Ponytail/CodeRabbit advisories before committing or pushing. Review
+and advisories start only after the authoritative command succeeds and the
+frozen package identity is unchanged. It does not spawn a second implementation
+worker. A verifier command failure or mandatory post-verifier package identity
+mismatch invalidates verification;
+either DIRECT failure returns to the same sole host writer under the
+documented exception within `TEST_LOOP_CAP`, then refreezes and dispatches a
+fresh verifier. Never spawn an implementation worker solely for DIRECT
+recovery.
 
 ## 2 · Let it route
 
@@ -58,8 +79,21 @@ For every HEAVY/high-risk review lens, Codex/default dispatches a fresh built-in
 `default` subagent at GPT-5.6 Sol/high, never a named or global reviewer type,
 with the complete inspection-only lens assignment, and passes the exact review
 cap from `../../harness/loops.env`. Claude may use the plugin-bundled reviewer
-  agents. Every reviewer receives exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. They inspect only those inputs; they never edit or run tests,
-  builds, linters, validators, or other verification commands.
+agents. Before any blocking reviewer is dispatched, intake rechecks the current
+host identity and freezes the complete current PR candidate under the existing
+shared freeze/verifier contract. A successful `verified_identity_by_host` entry
+for the exact host, frozen package identity, and authoritative command is reused
+without rerunning the same command on identical bytes. An absent or stale entry
+requires exactly one dedicated read-only verifier; command success and unchanged
+host and package identities are required before the mapping is updated and
+review starts. Repair, refreeze, reverification, and push each refresh the
+mapping; a changed identity invalidates it until verification succeeds again.
+Every reviewer receives exactly these semantic inputs: the original user
+request or authoritative specification, the approved plan, and the frozen
+diff. Never include verifier output or attestation, the verified-identity
+mapping, the finding ledger, or repair provenance. Reviewers inspect only their
+three inputs; they never edit or run tests, builds, linters, validators, or
+other verification commands.
 
 ## 3 · Check in, don't babysit
 

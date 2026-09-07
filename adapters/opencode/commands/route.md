@@ -13,10 +13,24 @@ Task: `$ARGUMENTS`
 Read `.opencode/software-factory/loops.env` and enforce its named caps.
 The bundled `.opencode/agents/implementation-worker.md` is the only writer for
 implementation and repair turns. Pass it the complete assignment, explicit
-allowed paths, focused check, and literal cap/model values from
+allowed paths, smallest relevant focused checks, and literal cap/model values from
 `.opencode/software-factory/loops.env`; the `build` host remains
 orchestrator and may write directly only for a genuinely trivial DIRECT change
-or when native delegation is unavailable, stating why.
+and states why. A native implementation-worker launch failure retries or stops
+within `TEST_LOOP_CAP`; it never falls back to host implementation or silently
+changes providers.
+The bundled `.opencode/agents/verification-agent.md` is the dedicated final
+verifier: after all writers are terminal, freeze the candidate and give it the
+exact authoritative verification command, frozen package identity, `cwd`,
+acceptance criteria, and `TEST_LOOP_CAP=<value>`. It runs that command once,
+reports command/result evidence, and the host confirms the candidate identity
+is unchanged before review. A verifier command failure or mandatory
+post-verifier package identity mismatch invalidates verification. For worker
+routes, return to the single implementation worker within `TEST_LOOP_CAP`; after
+repair, refreeze and dispatch a fresh verifier. For a trivial DIRECT host edit,
+return to the same sole host writer under the documented DIRECT exception
+within `TEST_LOOP_CAP`, then refreeze and dispatch a fresh verifier; never spawn
+an implementation worker solely for DIRECT recovery.
 
 If the task explicitly identifies an existing authoritative specification to
 implement, invoke `$implement-spec` and follow that durable workflow instead of
@@ -64,13 +78,25 @@ never edit or run tests, builds, linters, validators, or other verification
 commands.
 
 Every route below that reaches implementation runs the same core: implement
-→ run the same test command CI itself runs (cap `TEST_LOOP_CAP`) → an
-advisory pass (`coderabbit` if available + `ponytail-review`, cheap,
-non-blocking, never loops). Only what comes before and after that core
-differs by route:
+with the smallest relevant focused checks → freeze the candidate → dispatch
+exactly one `.opencode/agents/verification-agent.md` for the authoritative
+command CI itself runs (including integration and acceptance checks, cap
+`TEST_LOOP_CAP`) → an advisory pass (`coderabbit` if available +
+`ponytail-review`, cheap, non-blocking, never loops). A verifier command failure
+or mandatory post-verifier package identity mismatch invalidates verification.
+For worker routes, return to the single implementation worker within
+`TEST_LOOP_CAP`; after repair, refreeze and dispatch a fresh verifier. For a
+trivial DIRECT host edit, return to the same sole host writer under the
+documented DIRECT exception within `TEST_LOOP_CAP`, then refreeze and dispatch
+a fresh verifier; never spawn an implementation worker solely for DIRECT
+recovery. Review starts only after authoritative verification passes: the
+command succeeded and the frozen package identity is unchanged.
+Only what comes before and after that core differs by route:
 
-- DIRECT   → implement, core, commit to a branch (never main). No blocking
-             panel — tests are the gate.
+- DIRECT   → implement, core, commit to a branch (never main). A mismatch
+             follows the same sole host-writer exception above; no worker is
+             spawned solely for DIRECT recovery. No blocking panel — tests are
+             the gate.
 - STANDARD → short plan (delegate exploration to `repo-explorer` first if the
              plan depends on unknowns) → dispatch exactly one
              `implementation-worker` with the complete assignment → implement,

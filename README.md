@@ -3,7 +3,7 @@
 A software factory — a portable specification-execution workflow
 plus the routing layer between you and coding CLIs. It owns seven things:
 
-- **implement-spec** — approved spec → exploration → plan → implementation worker → evidence → review
+- **implement-spec** — approved spec → exploration → plan → implementation worker → dedicated verification → evidence → review
 - **triage** — Haiku-priced classification of each task
 - **dispatch** — route → workstream + model ladder
 - **loop enforcement** — caps, conformance exits, breakers
@@ -47,9 +47,11 @@ $implement-spec Implement docs/specs/refunds.md         # Codex
 
 The current host session is the technical lead and workflow owner. It launches
 read-only native explorers, synthesizes their findings, applies a second risk
-gate, dispatches exactly one implementation worker for writes and repairs, and
-obtains independent read-only review. Claude uses the plugin-bundled worker,
-Codex its built-in worker, and OpenCode its bundled repo-local worker. Product
+gate, dispatches exactly one implementation worker for writes and repairs, then
+freezes the candidate for one dedicated final verifier before obtaining
+independent read-only review. Claude uses the plugin-bundled worker and
+verification agent, Codex its built-in worker and fresh default verifier, and
+OpenCode its bundled repo-local worker and verification agent. Product
 requirements remain owned by the supplied spec; technical uncertainty is
 resolved through repository exploration.
 
@@ -63,7 +65,7 @@ resolved through repository exploration.
 ├── commands/
 │   ├── execute.md                → /software-factory:execute (Claude Code)
 │   └── setup.md                  → /software-factory:setup
-├── agents/                       Claude plugin explorers + reviewers
+├── agents/                       Claude plugin explorers + verifier + reviewers
 ├── skills/route/
 │   ├── SKILL.md                  the route skill / routing methodology
 │   └── classifier.md             Stage-1 triage prompt (JSON out)
@@ -101,7 +103,8 @@ keeps engine and target state separate via `SOFTWARE_FACTORY_HOME` and
 
 - **Spec execution.** `software-factory implement <spec> --runtime <host>` starts
   one host session, creates a resumable run directory, and lets the portable
-  skill coordinate read-only exploration/review and one implementation worker.
+  skill coordinate read-only exploration, one implementation worker, one final
+  verifier, and review.
 - **Mode A (inline, day one).** In a Claude Code session, type
   `/software-factory:execute <task>` (or `/software-factory:route <task>` to just
   classify). The skill classifies, announces the route, and follows it.
@@ -110,8 +113,8 @@ keeps engine and target state separate via `SOFTWARE_FACTORY_HOME` and
   next command for you (or a wrapper) to run. Print-only is the safety boundary.
 - **Mode C (HEAVY walk-through).** Human gates in force: grill → plan at high
   effort → native plan critic → **human approves** → implementation worker →
-  test loop → native review panel → goal-gate the diff → PR → CI →
-  **human merges**.
+  dedicated final verification → native review panel → goal-gate the diff → PR
+  → CI → **human merges**.
 
 Inline and spec workflows use the current host's native subagents by default.
 Codex uses native Codex explorers/reviewers and a native GPT-6 Astra HEAVY plan
@@ -126,8 +129,9 @@ What each `route` level actually runs, end to end. Shapes: `[process]` ·
 toward the review loop cap), a dashed box is advisory (surfaced, never
 blocks). The violet-bordered box in DIRECT/STANDARD/HEAVY (and again inside
 pr-intake, below) is the same reusable sub-workflow every time —
-`references/implement-and-verify.md`'s implement → CI's real test command →
-advisory pass — not three different implementations of the same idea.
+`references/implement-and-verify.md`'s implement → dedicated verifier runs CI's
+authoritative command → advisory pass — not three different implementations of
+the same idea.
 `DIRECT`/`STANDARD`/`HEAVY` are the three routes `implement-ticket`
 covers — one ticket in, one mergeable PR out. The rest are workstreams
 `/route` dispatches directly; `implement-ticket` declines to force them into
@@ -146,7 +150,7 @@ flowchart TD
     A[Ticket] --> B
     subgraph CORE1["implement-and-verify.md — shared core"]
         direction TB
-        B["Implement<br/>implementation-worker"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
+        B["Implement<br/>implementation-worker"] --> C["Final verification<br/>dedicated agent<br/>cap TEST_LOOP_CAP"]
         C --> D[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
     D --> E(("Open PR"))
@@ -157,7 +161,7 @@ flowchart TD
     class CORE1 core
 ```
 
-No blocking panel — tests are the gate — but the shared core (violet), the
+No blocking panel — final verification is the gate — but the shared core (violet), the
 PR, and `pr-watch` still run. Nothing merges without a PR.
 
 </details>
@@ -179,7 +183,7 @@ flowchart TD
     P --> B
     subgraph CORE2["implement-and-verify.md — shared core"]
         direction TB
-        B["Implement<br/>EXEC_MODEL=claude-sonnet-5"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
+        B["Implement<br/>EXEC_MODEL=claude-sonnet-5"] --> C["Final verification<br/>dedicated agent<br/>cap TEST_LOOP_CAP"]
         C --> D[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
     D --> F{{"Blocking panel · T1<br/>conformance lens"}}
@@ -217,7 +221,7 @@ flowchart TD
     D0 --> B
     subgraph CORE3["implement-and-verify.md — shared core"]
         direction TB
-        B["Implement<br/>implementation-worker, only after approval"] --> C["Run tests<br/>cap TEST_LOOP_CAP"]
+        B["Implement<br/>implementation-worker, only after approval"] --> C["Final verification<br/>dedicated agent<br/>cap TEST_LOOP_CAP"]
         C --> Dadv[["Advisory pass<br/>coderabbit + ponytail-review"]]
     end
     Dadv --> G{{"Blocking panel · T2<br/>conformance + security + adversarial"}}
