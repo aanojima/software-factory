@@ -15,6 +15,18 @@ Resolve that file as `../../harness/loops.env` relative to the plugin's
 `skills/pr-watch/SKILL.md`, and pass its exact relevant cap/model values in
 each assignment. Do not ask the target repository to resolve plugin paths.
 
+Codex intake uses `CODEX_PR_INTAKE_MODEL` and `CODEX_PR_INTAKE_EFFORT`; Codex
+workers use `CODEX_EXEC_MODEL` and `CODEX_EXEC_EFFORT`; Codex blocking
+reviewers use `CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT`.
+
+For Codex-native receipt mechanics, follow
+`../skills/route/references/agent-audit.md`. Use `.agent-runs/pr-watch/$PR` as
+`AUDIT_DIR`; record the returned native ID immediately after every spawn,
+terminalize every observed completion/failure/cancellation/timeout, and include
+`subagent-roster` output in the terminal report. An abrupt or unobservable
+runtime loss remains visibly pending until a later host confirms terminality;
+do not fabricate an outcome.
+
 ## Loop
 
 Ensure the extension is installed (`gh extension list | grep -q pr-monitor ||
@@ -24,6 +36,23 @@ gh extension install aanojima/gh-pr-monitor`), then open one **persistent**
 ```
 gh pr-monitor $PR --json --interval $PR_WATCH_POLL_INTERVAL_SEC
 ```
+
+The parent `pr-watch` host records the Codex intake spawn. Before starting the
+monitor, wait for one immediate audit-identity handoff
+from the parent `pr-watch` host containing the exact `AUDIT_DIR`, returned
+native/session ID, and attempt number. The parent records the Codex intake
+spawn; intake does not start a second receipt for that launch. After the
+handoff, intake owns terminalizing that existing receipt immediately before
+its terminal roster/report for normal completion, cap, self-managed timeout, or
+failure. If the parent explicitly cancels or interrupts intake, or observes a
+launch/runtime failure before the handoff, the parent terminalizes the receipt
+when native terminality is confirmed; if terminality cannot be confirmed, keep
+the receipt pending until a later host confirms it rather than fabricating an
+outcome for an abrupt or unobservable runtime loss. After each nested
+worker, verifier, or reviewer spawn returns, intake runs `subagent-start` with
+its returned native/session ID immediately and terminalizes that receipt with
+`subagent-terminal` whenever the nested attempt completes, fails, is
+cancelled, or times out.
 
 (`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` — now the poll cadence
 `gh-pr-monitor` uses internally, not a sleep you manage). Each stdout line is
@@ -52,7 +81,7 @@ interrupts your turn when something on the PR actually changed.
 2. Act on the classification:
    - `DIRECT` (tier T0, risk low): keep non-writing actions inline — rerun a known-flaky check (`gh run rerun --failed`) or post a one-line acknowledging reply. A repository edit, including a typo/lint fix, uses the documented DIRECT host-write exception and then follows the shared core: freeze the complete diff, dispatch exactly one dedicated read-only verifier to run the authoritative command once, confirm the frozen identity, and run the visible nonblocking Ponytail/CodeRabbit advisories before commit/push. Review and advisories start only after the authoritative command succeeds and the frozen package identity is unchanged. A verifier command failure or mandatory post-verifier package identity mismatch invalidates verification and returns to the same sole host writer under the DIRECT exception within `TEST_LOOP_CAP`; then refreeze and dispatch a fresh verifier. Never spawn an implementation worker solely for DIRECT recovery.
    - `STANDARD` (tier T1): spawn exactly one fresh implementation worker. Its assignment contains only the event or finding, explicit allowed paths, acceptance criteria, the smallest relevant focused checks, `HOST_EXEC_MODEL`, and literal `TEST_LOOP_CAP=<value>`. The classifier only saw one event line; the worker sees the real code, so tell it to report distinctly when the suggestion does not apply because it is already handled or contradicts a named repository convention. Intake replies on the thread when needed. The worker may edit only the supplied paths, run the supplied focused checks, and return terminal; it may not redesign, delegate, commit, push, publish, open a PR, freeze the candidate, dispatch verification or review, or run advisories. Repairs return to the same worker when healthy.
-   - `HEAVY` or risk=high: do not write code yourself. Before dispatching any blocking reviewer, recheck the current host identity and freeze the complete current PR candidate with the shared freeze/verifier contract in `../skills/route/references/implement-and-verify.md`. If `verified_identity_by_host` has a successful entry for that exact host, frozen package identity, and authoritative command, do not rerun the same authoritative command on identical bytes. If the entry is absent or stale, dispatch exactly one dedicated read-only verifier with the frozen identity, `cwd`, exact authoritative command, acceptance criteria, and `TEST_LOOP_CAP`; require command success, then recheck that both host and package identities are unchanged before updating the mapping or starting review. A failed command or changed identity blocks reviewer dispatch. Spawn a conformance reviewer (baseline, always) plus each applicable risk lens from `../skills/route/references/review-panel.md`, all read-only, in parallel. For Codex/default reviewers, use a fresh built-in `default` subagent at GPT-5.6 Sol/high, never a named or global reviewer type, with the complete inspection-only lens assignment. Claude may use its plugin-bundled reviewer agents. Pass the exact review cap from `../../harness/loops.env`. Give every reviewer exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Never include verifier output or attestation, `verified_identity_by_host`, the finding ledger, or repair provenance. Tell reviewers to inspect only their three inputs; never edit or run tests, builds, linters, validators, or other verification commands. Then message the parent session with the finding and every reviewer's assessment — this is always a human decision, and you have no other way to reach the human. Mark the event `awaiting_decision` in `state.json` so you don't re-triage or re-escalate it, then keep watching: don't stop for one pending decision, other events on this PR still need triage. When the decision comes back as an incoming message:
+   - `HEAVY` or risk=high: do not write code yourself. Before dispatching any blocking reviewer, recheck the current host identity and freeze the complete current PR candidate with the shared freeze/verifier contract in `../skills/route/references/implement-and-verify.md`. If `verified_identity_by_host` has a successful entry for that exact host, frozen package identity, and authoritative command, do not rerun the same authoritative command on identical bytes. If the entry is absent or stale, dispatch exactly one dedicated read-only verifier with the frozen identity, `cwd`, exact authoritative command, acceptance criteria, and `TEST_LOOP_CAP`; require command success, then recheck that both host and package identities are unchanged before updating the mapping or starting review. A failed command or changed identity blocks reviewer dispatch. Spawn a conformance reviewer (baseline, always) plus each applicable risk lens from `../skills/route/references/review-panel.md`, all read-only, in parallel. For Codex/default reviewers, resolve `CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT` from `../../harness/loops.env` and use a fresh built-in `default` subagent, never a named or global reviewer type, with the complete inspection-only lens assignment. Claude may use its plugin-bundled reviewer agents. Pass the exact review cap from `../../harness/loops.env`. Give every reviewer exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Never include verifier output or attestation, `verified_identity_by_host`, the finding ledger, or repair provenance. Tell reviewers to inspect only their three inputs; never edit or run tests, builds, linters, validators, or other verification commands. Then message the parent session with the finding and every reviewer's assessment — this is always a human decision, and you have no other way to reach the human. Mark the event `awaiting_decision` in `state.json` so you don't re-triage or re-escalate it, then keep watching: don't stop for one pending decision, other events on this PR still need triage. When the decision comes back as an incoming message:
      - **apply** — spawn exactly one fresh implementation worker with the finding, explicit allowed paths, acceptance criteria, the smallest relevant focused checks, `HOST_EXEC_MODEL`, and literal `TEST_LOOP_CAP=<value>`. It edits, runs only those focused checks, and returns terminal. Use the same worker for later repairs when healthy.
      - **decline** — reply on the thread with the human's stated reason. No code change, no dispatch.
      Either way, clear `awaiting_decision`.
@@ -63,3 +92,8 @@ interrupts your turn when something on the PR actually changed.
 5. After handling each event, check the stop conditions: `PR_WATCH_LOOP_CAP` escalations dispatched, or `PR_WATCH_TIMEOUT_MIN` minutes elapsed since `started_at` (both from `harness/loops.env`). Separately, `gh-pr-monitor` exits on its own once the PR leaves the `OPEN` state (merged or closed), which ends the Monitor and surfaces its exit to you. On any of the three: fetch final state with `gh pr view $PR --json state,mergedAt`, `SendMessage(to: "main", message: "...")` with the summary, `TaskStop` the Monitor if it's still running, then end your run — there's nothing left to watch.
 
 Never push directly to `main`. Never modify tests to make them pass. A repeated identical failure after one fix attempt is a stop condition — report it, don't retry blindly.
+
+Before that terminal report, render `.agent-runs/pr-watch/$PR` with
+`subagent-roster` and include the compact Markdown table. The receipts prove
+requested dispatch parameters, not a runtime attestation from the model
+service.

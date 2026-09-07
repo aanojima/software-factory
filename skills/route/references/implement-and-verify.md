@@ -19,6 +19,13 @@ in each assignment, including `TEST_LOOP_CAP` and the selected executor model;
 Codex implementation workers receive the literal `CODEX_EXEC_MODEL` value.
 The target repository is not a source of plugin configuration.
 
+Follow `agent-audit.md` for every Codex dispatch in this core. Immediately
+after spawn, record the returned native agent/session ID with `subagent-start`;
+after completion, failure, cancellation, or timeout, record one matching
+`subagent-terminal` status. At terminal return, include the output of
+`subagent-roster`. The receipt contains requested parameters, not a runtime
+attestation from the model service.
+
 ## Core (always, in order)
 
 1. Except for DIRECT, the host dispatches exactly one implementation worker
@@ -29,7 +36,8 @@ The target repository is not a source of plugin configuration.
    the host-write exception documented in `../SKILL.md` for a genuinely trivial
    change, with the reason recorded.
    Claude uses the plugin-bundled `implementation-worker`, Codex uses its
-   built-in worker subagent with `CODEX_EXEC_MODEL`, and optional OpenCode uses
+   built-in worker subagent with `CODEX_EXEC_MODEL` and `CODEX_EXEC_EFFORT`, and
+   optional OpenCode uses
    its bundled repo-local worker. The worker may read, edit allowed paths, and
    run only the smallest relevant focused checks while editing; do not use the
    full suite unless it is the only meaningful focused check. It may not
@@ -48,7 +56,8 @@ The target repository is not a source of plugin configuration.
    with the frozen package identity, `cwd`, exact command, acceptance criteria,
    and `TEST_LOOP_CAP=<value>`. Claude uses the bundled `verification-agent`;
    Codex uses one fresh built-in `default` subagent with the literal
-   `CODEX_EXEC_MODEL` value, never a named or global Codex role; optional
+   `CODEX_VERIFIER_MODEL` and `CODEX_VERIFIER_EFFORT` values, never a named or
+   global Codex role; optional
    OpenCode uses its bundled repo-local `verification-agent`. The verifier is
    read-only, runs the supplied command once, and reports command/result
    evidence. The host confirms the candidate identity is unchanged afterward

@@ -15,6 +15,11 @@ roles and pass the exact relevant `PLAN_LOOP_CAP_T2`, review cap,
 `TEST_LOOP_CAP`, and model values in assignments; never ask the target
 repository to resolve plugin configuration.
 
+For Codex-native receipt mechanics, follow `../route/references/agent-audit.md`.
+Use the explicit run directory as `AUDIT_DIR`, record the returned native ID
+immediately after every spawn, terminalize every completion/failure/
+cancellation/timeout, and include `subagent-roster` output in the final report.
+
 ## Establish the run
 
 1. Resolve the repository root and authoritative specification path.
@@ -53,6 +58,10 @@ repository unknown can change the approach, record that and skip exploration.
 If a native explorer cannot launch, retry once at most and then stop; do not
 continue through a sequential or external-provider fallback.
 
+For Codex, resolve `CODEX_EXPLORER_MODEL` and `CODEX_EXPLORER_EFFORT` from the
+plugin-relative `harness/loops.env` and record the returned native ID with
+`subagent-start` immediately after spawn.
+
 Store findings under `exploration/`. Do not ask explorers to choose the final design.
 
 ### 3. Produce the implementation plan and reassess risk
@@ -65,9 +74,10 @@ The plan must trace every acceptance criterion to code changes and validation ev
 - `medium`: continue, explicitly record risks and rollback; surface them in the final report.
 - `high`: before requesting human approval, ask a fresh read-only native
   subagent to review the plan against the original user request or authoritative
-  specification and exploration evidence. In Codex use GPT-6 Astra at high
-  effort; in Claude use a
-  high-effort native plan critic. Require approval or concrete blockers; the
+  specification and exploration evidence. In Codex resolve
+  `CODEX_PLAN_CRITIC_MODEL` and `CODEX_PLAN_CRITIC_EFFORT` from
+  `../../harness/loops.env`; in Claude use a high-effort native plan critic.
+  Require approval or concrete blockers; the
   plan reviewer does not need an implementation diff. It must inspect only the
   supplied artifacts without running verification commands. Record its verdict
   and any resolved blockers in `decisions.md`. Revise and obtain a fresh review up
@@ -81,7 +91,8 @@ and final response. Dispatch exactly one implementation worker for the current
 worktree with the specification snapshot, approved plan, acceptance criteria,
 explicit allowed paths, smallest relevant focused checks, and the literal
 `TEST_LOOP_CAP=<value>` plus the selected model (`EXEC_MODEL=<value>` for
-Claude or `CODEX_EXEC_MODEL=<value>` for Codex) resolved from
+Claude or `CODEX_EXEC_MODEL=<value>` and `CODEX_EXEC_EFFORT=<value>` for Codex)
+resolved from
 the resolved `CAPS_SOURCE`. Claude uses the plugin-bundled
 `implementation-worker`; Codex uses its built-in worker subagent; optional
 OpenCode uses the bundled repo-local implementation worker.
@@ -97,6 +108,10 @@ implementation-worker launch failure retries or stops within `TEST_LOOP_CAP`;
 it never falls back to host implementation or silently switches providers.
 Preserve unrelated user changes.
 
+For Codex, record the returned worker/session ID immediately after each spawn
+with `subagent-start`; record that same identity with `subagent-terminal` after
+every normal completion, failure, cancellation, or timeout, including repairs.
+
 ### 5. Final verification and goal
 
 After every writer is terminal, the host freezes the complete candidate,
@@ -107,8 +122,9 @@ agent against that frozen candidate with the exact command, frozen package
 identity, `cwd`, acceptance criteria, and the resolved `TEST_LOOP_CAP=<value>`.
 
 Claude uses the bundled `verification-agent`. Codex uses one fresh built-in
-`default` subagent with the literal `CODEX_EXEC_MODEL` value from the resolved
-`CAPS_SOURCE`; never use a named or global Codex role for verification. OpenCode
+`default` subagent with the literal `CODEX_VERIFIER_MODEL` and
+`CODEX_VERIFIER_EFFORT` values from the resolved `CAPS_SOURCE`; never use a named or global Codex role
+for verification. OpenCode
 uses its bundled repo-local `verification-agent`. The verifier is read-only,
 runs the supplied command once, and reports command/result evidence. The host
 must confirm that the frozen package identity is unchanged after the verifier
@@ -124,6 +140,10 @@ spawn an implementation worker solely for DIRECT recovery. Review starts only
 after authoritative verification passes: the command succeeded and the frozen
 package identity is unchanged.
 
+Record the returned verifier/session ID immediately after spawn and terminalize
+it for completion, failure, cancellation, or timeout with the shared audit
+commands.
+
 Read `references/goal-validation.md`. Write `validation.json` using
 `schemas/validation.schema.json`, recording the verifier result and concrete
 evidence for each acceptance criterion.
@@ -138,17 +158,28 @@ diff for the required advisory pass from that contract. Run it before launching
 any blocking reviewer. Treat
 conformance, security, and adversarial review as lens assignments rather than
 required custom agent names. Claude may use the matching plugin agents. Codex
-must use a fresh built-in `default`
-subagent at GPT-5.6 Sol/high for each lens, never a named or global reviewer
-type, with the complete inspection-only lens assignment. Always assign
+must use a fresh built-in `default` subagent for each lens, resolving
+`CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT` from
+`../../harness/loops.env`; never use a named or global reviewer type, with the
+complete inspection-only lens assignment. Always assign
 conformance and add security when the risk policy calls for it.
+
+The Codex Ponytail advisory uses `CODEX_PONYTAIL_MODEL` and
+`CODEX_PONYTAIL_EFFORT` with a built-in `default` subagent and the
+`ponytail:ponytail-review` skill in its assignment. If launched, record its
+returned native ID immediately after spawn and terminalize it after completion
+or failure. If the skill is unavailable, preserve the visible `SKIPPED` result
+and create no dispatch receipt. Blocking Codex reviewers use
+`CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT` and follow the same receipt
+lifecycle.
 
 Every reviewer receives exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff—not the writer's private reasoning or a validation task. Their
 assignment must prohibit running tests, builds, linters, validators, or other
 verification commands; they inspect those three inputs and report findings
 only. Pass the exact
 review cap value from the resolved `CAPS_SOURCE`; Codex/default reviewers use
-GPT-5.6 Sol/high, while Claude may use the matching plugin reviewer.
+the resolved `CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT`, while Claude may
+use the matching plugin reviewer.
 Store each response in `reviews/` using `schemas/review.schema.json`.
 
 If blocking findings exist, return to the single writer, fix, revalidate, and obtain a fresh review. Honor the configured review cap. A repeated identical failure or a cap hit is a stop condition, not permission to weaken tests or reinterpret the spec.
@@ -165,6 +196,10 @@ Before completion, run `scripts/run_state.py validate <run-dir>` when available.
 - no human gate is outstanding.
 
 Write `final-summary.md` with the implemented scope, evidence, risks, deviations, and remaining follow-ups. Transition the run to `complete`.
+Before returning the terminal result, run `subagent-roster` for the run's
+`AUDIT_DIR` and include its compact Markdown table in the final report. The
+receipts prove requested dispatch parameters, not a runtime attestation from
+the model service.
 
 ## Hard stops
 

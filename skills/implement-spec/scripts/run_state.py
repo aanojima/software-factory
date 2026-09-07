@@ -10,8 +10,14 @@ import re
 import shutil
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows has no fcntl
+    fcntl = None
 
 
 ALLOWED_TRANSITIONS = {
@@ -36,6 +42,10 @@ ALLOWED_TRANSITIONS = {
     "cap_hit": set(),
     "complete": set(),
 }
+
+SUBAGENT_STATUSES = {"completed", "failed", "cancelled", "timed_out"}
+SUBAGENT_AGENT_TYPES = {"explorer", "worker", "default"}
+SUBAGENT_SCHEMA_VERSION = 1
 
 
 def utc_now() -> str:
@@ -73,6 +83,168 @@ def resolve_run_dir(value: str) -> Path:
     if not (run_dir / "run.json").is_file():
         raise ValueError(f"not an implement-spec run directory: {run_dir}")
     return run_dir
+
+
+def resolve_audit_dir(value: str, *, create: bool = False) -> Path:
+    audit_dir = Path(value).expanduser().resolve()
+    if audit_dir.exists() and not audit_dir.is_dir():
+        raise ValueError(f"audit path is not a directory: {audit_dir}")
+    if create:
+        audit_dir.mkdir(parents=True, exist_ok=True)
+    elif not audit_dir.is_dir():
+        raise ValueError(f"audit directory does not exist: {audit_dir}")
+    return audit_dir
+
+
+def subagent_path(audit_dir: Path) -> Path:
+    return audit_dir / "subagents.json"
+
+
+def empty_subagent_state() -> dict:
+    return {"schema_version": SUBAGENT_SCHEMA_VERSION, "subagents": []}
+
+
+@contextmanager
+def audit_lock(audit_dir: Path):
+    descriptor = os.open(audit_dir, os.O_RDONLY)
+    try:
+        if fcntl is not None:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+        yield
+    finally:
+        if fcntl is not None:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+
+def load_subagent_state(audit_dir: Path) -> dict:
+    path = subagent_path(audit_dir)
+    if not path.exists():
+        return empty_subagent_state()
+    state = load_json(path)
+    if state.get("schema_version") != SUBAGENT_SCHEMA_VERSION:
+        raise ValueError(f"unsupported subagent audit schema in {path}")
+    entries = state.get("subagents")
+    if not isinstance(entries, list):
+        raise ValueError(f"subagents.json has no subagents list: {path}")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError(f"subagents.json contains a non-object entry: {path}")
+    return state
+
+
+def subagent_start(args: argparse.Namespace) -> int:
+    audit_dir = resolve_audit_dir(args.audit_dir, create=True)
+    if args.attempt < 1:
+        raise ValueError("subagent attempt must be a positive integer")
+    if args.agent_type not in SUBAGENT_AGENT_TYPES:
+        raise ValueError(
+            "subagent agent type must be one of: explorer, worker, default"
+        )
+    values = {
+        "role": args.role,
+        "agent_type": args.agent_type,
+        "model": args.model,
+        "reasoning_effort": args.reasoning_effort,
+        "agent_id": args.agent_id,
+        "attempt": args.attempt,
+    }
+    if any(not value for value in values.values() if isinstance(value, str)):
+        raise ValueError(
+            "subagent role, type, model, reasoning effort, and agent id are required"
+        )
+    with audit_lock(audit_dir):
+        state = load_subagent_state(audit_dir)
+        entries = state["subagents"]
+        if any(
+            entry.get("agent_id") == args.agent_id
+            and entry.get("attempt") == args.attempt
+            for entry in entries
+        ):
+            raise ValueError(
+                f"duplicate subagent identity: {args.agent_id!r} attempt {args.attempt}"
+            )
+        entry = {
+            **values,
+            "started_at": utc_now(),
+            "terminal_at": None,
+            "status": None,
+        }
+        entries.append(entry)
+        atomic_json(subagent_path(audit_dir), state)
+    print(args.agent_id)
+    return 0
+
+
+def subagent_terminal(args: argparse.Namespace) -> int:
+    audit_dir = resolve_audit_dir(args.audit_dir)
+    if args.attempt < 1:
+        raise ValueError("subagent attempt must be a positive integer")
+    with audit_lock(audit_dir):
+        state = load_subagent_state(audit_dir)
+        matches = [
+            entry
+            for entry in state["subagents"]
+            if entry.get("agent_id") == args.agent_id
+            and entry.get("attempt") == args.attempt
+        ]
+        if not matches:
+            raise ValueError(
+                f"no started subagent for identity {args.agent_id!r} attempt {args.attempt}"
+            )
+        entry = matches[0]
+        if not entry.get("started_at"):
+            raise ValueError("cannot terminalize subagent without a start time")
+        if entry.get("terminal_at") or entry.get("status"):
+            raise ValueError(
+                f"subagent already terminal: {args.agent_id!r} attempt {args.attempt}"
+            )
+        entry["terminal_at"] = utc_now()
+        entry["status"] = args.status
+        atomic_json(subagent_path(audit_dir), state)
+    print(f"{args.agent_id}: {args.status}")
+    return 0
+
+
+def markdown_cell(value: object) -> str:
+    return str(value if value is not None else "pending").replace("|", "\\|")
+
+
+def subagent_roster(args: argparse.Namespace) -> int:
+    audit_dir = Path(args.audit_dir).expanduser().resolve()
+    if audit_dir.exists() and not audit_dir.is_dir():
+        raise ValueError(f"audit path is not a directory: {audit_dir}")
+    state = (
+        load_subagent_state(audit_dir)
+        if audit_dir.is_dir()
+        else empty_subagent_state()
+    )
+    print("| Role | Agent type | Model | Effort | Native/session ID | Attempt | Started | Terminal | Status |")
+    print("| --- | --- | --- | --- | --- | ---: | --- | --- | --- |")
+    for entry in state["subagents"]:
+        print(
+            "| "
+            + " | ".join(
+                markdown_cell(entry.get(key))
+                for key in (
+                    "role",
+                    "agent_type",
+                    "model",
+                    "reasoning_effort",
+                    "agent_id",
+                    "attempt",
+                    "started_at",
+                    "terminal_at",
+                    "status",
+                )
+            )
+            + " |"
+        )
+    print(
+        "Receipts prove requested dispatch parameters; they are not a runtime "
+        "attestation from the model service."
+    )
+    return 0
 
 
 def init_run(args: argparse.Namespace) -> int:
@@ -133,6 +305,7 @@ def init_run(args: argparse.Namespace) -> int:
         ],
     }
     atomic_json(run_dir / "run.json", state)
+    atomic_json(run_dir / "subagents.json", empty_subagent_state())
     print(run_dir)
     return 0
 
@@ -349,6 +522,65 @@ def parser() -> argparse.ArgumentParser:
     status = commands.add_parser("status", help="print run state")
     status.add_argument("run_dir")
     status.set_defaults(handler=show_status)
+
+    start_agent = commands.add_parser(
+        "subagent-start", help="record a native subagent after it is spawned"
+    )
+    start_agent.add_argument("audit_dir")
+    start_agent.add_argument("--role", required=True)
+    start_agent.add_argument(
+        "--agent-type",
+        "--type",
+        dest="agent_type",
+        choices=sorted(SUBAGENT_AGENT_TYPES),
+        required=True,
+    )
+    start_agent.add_argument("--model", required=True)
+    start_agent.add_argument(
+        "--reasoning-effort", "--effort", dest="reasoning_effort", required=True
+    )
+    start_agent.add_argument(
+        "--agent-id",
+        "--native-id",
+        "--session-id",
+        "--native-agent-id",
+        dest="agent_id",
+        required=True,
+    )
+    start_agent.add_argument(
+        "--attempt", "--attempt-number", dest="attempt", type=int, default=1
+    )
+    start_agent.set_defaults(handler=subagent_start)
+
+    terminal_agent = commands.add_parser(
+        "subagent-terminal", help="record a native subagent terminal status"
+    )
+    terminal_agent.add_argument("audit_dir")
+    terminal_agent.add_argument(
+        "--agent-id",
+        "--native-id",
+        "--session-id",
+        "--native-agent-id",
+        dest="agent_id",
+        required=True,
+    )
+    terminal_agent.add_argument(
+        "--attempt", "--attempt-number", dest="attempt", type=int, default=1
+    )
+    terminal_agent.add_argument(
+        "--status",
+        "--terminal-status",
+        dest="status",
+        choices=sorted(SUBAGENT_STATUSES),
+        required=True,
+    )
+    terminal_agent.set_defaults(handler=subagent_terminal)
+
+    roster = commands.add_parser(
+        "subagent-roster", help="render the native subagent audit roster"
+    )
+    roster.add_argument("audit_dir")
+    roster.set_defaults(handler=subagent_roster)
     return root
 
 

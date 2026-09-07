@@ -10,6 +10,11 @@ for Claude/Codex plugin hosts, or `.opencode/software-factory/loops.env` when
 copied to `.agents/skills/` for OpenCode. Read that source once before dispatching
 a role and pass its exact relevant cap and model values in every assignment.
 
+For Codex-native receipt mechanics, follow `../route/references/agent-audit.md`.
+Use an explicit task audit directory, record the returned native ID immediately
+after every spawn, terminalize every completion/failure/cancellation/timeout,
+and include `subagent-roster` output in the terminal report.
+
 Everything `implement-ticket` does, minus opening the PR and everything
 after it. Use this when the code should be ready and sitting on a branch,
 but opening the PR (and whatever watches it afterward) is a separate call
@@ -59,8 +64,9 @@ State the decision in one line before touching anything:
 - **HEAVY**: delegate exploration to a native read-only explorer. Grill the task to a
   crisp spec, plan at high effort, then ask a fresh, read-only native subagent
   to review the plan against the task/spec and exploration evidence. In Codex
-  use GPT-6 Astra at high effort; in Claude use a high-effort native plan
-  critic. The plan review returns approval or concrete blockers and does not
+  resolve `CODEX_PLAN_CRITIC_MODEL` and `CODEX_PLAN_CRITIC_EFFORT` from
+  `../../harness/loops.env`; in Claude use a high-effort native plan critic.
+  The plan review returns approval or concrete blockers and does not
   require an implementation diff. It inspects only the supplied artifacts and
   does not run verification commands. Honor `PLAN_LOOP_CAP_T2`, then **stop for
   human plan approval** before dispatching the implementation worker.
@@ -76,7 +82,8 @@ HEAVY; DIRECT begins at step 2 after its host edit.
 1. For STANDARD or HEAVY, dispatch exactly one implementation worker for the
    fix or feature. DIRECT never dispatches an implementation worker. Claude
    uses the plugin-bundled `implementation-worker`, Codex uses its built-in
-   worker with the literal `CODEX_EXEC_MODEL` from the resolved `CAPS_SOURCE`,
+   worker with the literal `CODEX_EXEC_MODEL` and `CODEX_EXEC_EFFORT` values from
+   the resolved `CAPS_SOURCE`,
    and optional OpenCode uses its bundled repo-local worker. The assignment
    must include the approved plan, explicit allowed paths, acceptance criteria,
    smallest relevant focused checks, and literal `TEST_LOOP_CAP=<value>` and
@@ -89,6 +96,9 @@ HEAVY; DIRECT begins at step 2 after its host edit.
    states why. A native implementation-worker launch failure retries or stops
    within `TEST_LOOP_CAP`; it never falls back to host implementation or
    silently switches providers.
+   Immediately after a Codex spawn returns, record its returned ID with
+   `subagent-start`; terminalize that same ID with `subagent-terminal` after
+   every outcome, including repairs.
 2. After all writers are terminal, the host freezes the complete candidate,
    including its immutable base and any untracked files. Resolve the same
    authoritative final command CI uses for this repo, including integration and
@@ -96,7 +106,8 @@ HEAVY; DIRECT begins at step 2 after its host edit.
    with the frozen package identity, `cwd`, exact command, acceptance criteria,
    and `TEST_LOOP_CAP=<value>`. Claude uses the bundled `verification-agent`;
    Codex uses one fresh built-in `default` subagent with the literal
-   `CODEX_EXEC_MODEL` value, never a named or global Codex role; optional
+   `CODEX_VERIFIER_MODEL` and `CODEX_VERIFIER_EFFORT` values, never a named or
+   global Codex role; optional
    OpenCode uses its bundled repo-local `verification-agent`. The verifier is
    read-only, runs the supplied command once, and reports command/result
    evidence. The host confirms the candidate identity is unchanged afterward
@@ -133,4 +144,7 @@ HEAVY; DIRECT begins at step 2 after its host edit.
 
 Never push to `main`. Never modify tests to make them pass. A repeated
 identical failure after one fix attempt is a stop condition — report it,
-don't retry blindly. When a loop hits its cap, stop and report.
+don't retry blindly. When a loop hits its cap, stop and report. Before the
+terminal response, render the task audit directory with `subagent-roster`; its
+receipts prove requested dispatch parameters, not a runtime attestation from
+the model service.
