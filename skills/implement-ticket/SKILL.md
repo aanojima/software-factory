@@ -1,6 +1,6 @@
 ---
 name: implement-ticket
-description: One command for a single ticket end to end — classify, plan, explore, implement, validate, review, open a PR, then hand off unattended CI/review triage. Accepts free-text, a Linear key (e.g. ENG-1234), or a Linear issue URL. Use when given a ticket/task and asked to just ship it. Not for RALPH/SWARM/CRON/SPEC-shaped work (multi-PR or not yet measurable) — those still go through `/route` directly.
+description: One command for a single ticket end to end — classify, plan, explore, implement, validate, review, open a PR, then hand off unattended CI/review triage. Accepts free-text, a Linear key (e.g. ENG-1234), or a Linear issue URL. Use when given a ticket/task and asked to just ship it. Not for RALPH/SWARM/CRON/SPEC-shaped work (multi-PR or not yet measurable) — those still go through the route skill directly.
 ---
 
 # /implement-ticket <ticket> — ticket to mergeable PR, one command
@@ -37,7 +37,7 @@ follow the route) for the given ticket.
   continue below once the PR is open.
 - `RALPH` / `SWARM` / `CRON` / `SPEC`: stop here and report instead of
   improvising a single-PR shape onto them. These are multi-PR, recurring, or
-  not-yet-measurable — hand them to `/route` directly.
+  not-yet-measurable — hand them to the `route` skill directly.
 
 `HEAVY` and `risk=high` still hit their human gate inside `route` — this
 command does not skip it just because it's one invocation.
@@ -56,4 +56,4 @@ or review comments from this session afterward — that's `pr-intake`'s job.
 ## Done condition
 
 This command's job ends when `pr-watch` is launched, not when the PR merges.
-Report the PR link and that `pr-intake` is watching it; the human merges.
+Report the PR link and that the native intake subagent is watching it; the human merges.

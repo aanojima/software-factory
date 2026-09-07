@@ -10,6 +10,28 @@ for this, so the routing rules are embedded here).
 
 Task: `$ARGUMENTS`
 
+Read `.opencode/software-factory/loops.env` and enforce its named caps.
+The bundled `.opencode/agents/implementation-worker.md` is the only writer for
+implementation and repair turns. Pass it the complete assignment, explicit
+allowed paths, smallest relevant focused checks, and literal cap/model values from
+`.opencode/software-factory/loops.env`; the `build` host remains
+orchestrator and may write directly only for a genuinely trivial DIRECT change
+and states why. A native implementation-worker launch failure retries or stops
+within `TEST_LOOP_CAP`; it never falls back to host implementation or silently
+changes providers.
+The bundled `.opencode/agents/verification-agent.md` is the dedicated final
+verifier: after all writers are terminal, freeze the candidate and give it the
+exact authoritative verification command, frozen package identity, `cwd`,
+acceptance criteria, and `TEST_LOOP_CAP=<value>`. It runs that command once,
+reports command/result evidence, and the host confirms the candidate identity
+is unchanged before review. A verifier command failure or mandatory
+post-verifier package identity mismatch invalidates verification. For worker
+routes, return to the single implementation worker within `TEST_LOOP_CAP`; after
+repair, refreeze and dispatch a fresh verifier. For a trivial DIRECT host edit,
+return to the same sole host writer under the documented DIRECT exception
+within `TEST_LOOP_CAP`, then refreeze and dispatch a fresh verifier; never spawn
+an implementation worker solely for DIRECT recovery.
+
 If the task explicitly identifies an existing authoritative specification to
 implement, invoke `$implement-spec` and follow that durable workflow instead of
 the generic workstreams below.
@@ -51,27 +73,47 @@ external CLI only when the user explicitly requests mixed Claude + Codex
 review. A native launch failure stops or retries within the relevant cap; it
 never silently changes providers.
 
-Every route below that reaches implementation runs the same core: implement
-→ run the same test command CI itself runs (cap `TEST_LOOP_CAP`) → an
-advisory pass (`coderabbit` if available + `ponytail-review`, cheap,
-non-blocking, never loops). Only what comes before and after that core
-differs by route:
+Every implementation review assignment gives the reviewer exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Reviewers inspect only those inputs; they
+never edit or run tests, builds, linters, validators, or other verification
+commands.
 
-- DIRECT   → implement, core, commit to a branch (never main). No blocking
-             panel — tests are the gate.
+Every route below that reaches implementation runs the same core: implement
+with the smallest relevant focused checks → freeze the candidate → dispatch
+exactly one `.opencode/agents/verification-agent.md` for the authoritative
+command CI itself runs (including integration and acceptance checks, cap
+`TEST_LOOP_CAP`) → an advisory pass (`coderabbit` if available +
+`ponytail-review`, cheap, non-blocking, never loops). A verifier command failure
+or mandatory post-verifier package identity mismatch invalidates verification.
+For worker routes, return to the single implementation worker within
+`TEST_LOOP_CAP`; after repair, refreeze and dispatch a fresh verifier. For a
+trivial DIRECT host edit, return to the same sole host writer under the
+documented DIRECT exception within `TEST_LOOP_CAP`, then refreeze and dispatch
+a fresh verifier; never spawn an implementation worker solely for DIRECT
+recovery. Review starts only after authoritative verification passes: the
+command succeeded and the frozen package identity is unchanged.
+Only what comes before and after that core differs by route:
+
+- DIRECT   → implement, core, commit to a branch (never main). A mismatch
+             follows the same sole host-writer exception above; no worker is
+             spawned solely for DIRECT recovery. No blocking panel — tests are
+             the gate.
 - STANDARD → short plan (delegate exploration to `repo-explorer` first if the
-             plan depends on unknowns) → implement, core → `conformance-reviewer`
+             plan depends on unknowns) → dispatch exactly one
+             `implementation-worker` with the complete assignment → implement,
+             core → `conformance-reviewer`
              blocking (cap `REVIEW_LOOP_CAP`, capped loop back to implement) → PR.
 - HEAVY    → delegate exploration to `repo-explorer` → grill to a crisp spec →
              plan at high effort (cap `PLAN_LOOP_CAP_T2`) → fresh read-only
-             native plan critic → STOP for human approval → implement, core →
+             native plan critic → STOP for human approval → dispatch exactly
+             one `implementation-worker` → implement, core →
              `conformance-reviewer` plus
              `security-reviewer`/`adversarial-reviewer` as applicable, blocking
              (cap `REVIEW_LOOP_CAP_T2`; mandatory if any model in the loop is
              Critical-tier for cyber capability — see risk-policy.md) → PR →
              human signs + merges.
-- RALPH    → write `tasks/prd.md` + one spec per file in `tasks/todo/`, then run
-             the capped loop (`software-factory ralph`).
+- RALPH    → write `tasks/prd.md` + one spec per file in `tasks/todo/`, then
+             process one file at a time with a fresh native worker, one writer
+             at a time. Stop after 25 items or two identical failures.
 - SWARM    → decompose into ≤5 independent scopes; run each in its own worktree.
 - CRON     → draft a Routine/Action with an explicit done-criterion. No self-loop.
 - SPEC     → grind to a testable acceptance criterion, then re-route the PRD.

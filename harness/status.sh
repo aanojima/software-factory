@@ -13,7 +13,7 @@ echo "engine (this checkout): v$ENGINE_VER  @ $SOFTWARE_FACTORY_HOME"
 echo "target repo:            $TARGET"
 
 if [[ ! -f "$MARKER" ]]; then
-  echo "status:                NOT INITIALIZED — run 'software-factory init'"
+  echo "status:                NOT INITIALIZED — run the factory-setup skill with 'init'"
   exit 0
 fi
 
@@ -29,5 +29,5 @@ echo "plugin enabled:         $ENABLED (.claude/settings.json)"
 if [[ "$REPO_VER" == "$ENGINE_VER" ]]; then
   echo "status:                 up to date"
 else
-  echo "status:                 BEHIND — engine is v$ENGINE_VER; run 'software-factory update' (add --to <ref> to target a release)"
+  echo "status:                 BEHIND — engine is v$ENGINE_VER; run the factory-setup skill with 'update' (add --to <ref> to target a release)"
 fi

@@ -1,0 +1,29 @@
+{
+  "name": "software-factory",
+  "version": "0.2.1",
+  "description": "Route engineering work through guarded planning, implementation, validation, and native review.",
+  "author": {
+    "name": "aanojima",
+    "email": "aanojima@gmail.com",
+    "url": "https://github.com/aanojima"
+  },
+  "homepage": "https://github.com/aanojima/software-factory",
+  "repository": "https://github.com/aanojima/software-factory",
+  "license": "MIT",
+  "keywords": ["agent", "orchestration", "routing", "harness"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Software Factory",
+    "shortDescription": "Guarded engineering delivery workflows",
+    "longDescription": "Classify and execute engineering work with risk gates, native subagents, deterministic validation, and independent review.",
+    "developerName": "aanojima",
+    "category": "Developer Tools",
+    "capabilities": ["Instructions", "Code"],
+    "websiteURL": "https://github.com/aanojima/software-factory",
+    "defaultPrompt": [
+      "Route this engineering task and carry it through the correct workflow.",
+      "Implement this specification with validation and independent review.",
+      "Stage this ticket as a tested commit without opening a PR."
+    ]
+  }
+}

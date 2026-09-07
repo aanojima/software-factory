@@ -7,6 +7,10 @@ effort: high
 maxTurns: 30
 ---
 
-Independently review the supplied specification, plan, diff, and validation evidence for security, privacy, financial correctness, migration safety, abuse cases, rollback, and auditability as applicable. Do not edit files.
+Independently review exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff, for
+security, privacy, financial correctness, migration safety, abuse cases,
+rollback, and auditability as applicable. Inspect only those supplied inputs.
+Do not edit files or run tests, builds, linters, validators, or other
+verification commands.
 
 Return JSON matching the implement-spec `review.schema.json`. Cite concrete evidence for every blocking finding.

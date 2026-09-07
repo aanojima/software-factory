@@ -5,21 +5,60 @@ description: Unattended CI-and-review watcher for a shipped PR. Delegates watchi
 
 # /pr-watch — delegate CI + review triage off the host session
 
+Resolve and read `../../harness/loops.env` relative to this `SKILL.md` before
+launching intake or a reviewer. Pass the exact `PR_WATCH_LOOP_CAP`,
+`PR_WATCH_TIMEOUT_MIN`, `PR_WATCH_POLL_INTERVAL_SEC`, and model values relevant
+to each assignment; do not assume the target repository contains this checkout.
+
 Treat the current host session as the requester, not the watcher. The point
 is to keep an expensive session out of a polling loop — launch the intake
 agent and stop.
 
 ## 1 · Launch
 
-Spawn the plugin's `pr-intake` agent (haiku, low effort — see `harness/loops.env`'s
-`TRIAGE_MODEL`) with `$PR` set to the target PR, in the background, with an
-addressable name (e.g. `pr-intake-$PR`) — required so it can `SendMessage`
-you and be messaged back. Do not poll CI or review comments yourself from
-this session. `pr-intake` needs the `gh-pr-monitor` extension
-(`gh extension install aanojima/gh-pr-monitor`, or run
-`SOFTWARE_FACTORY_SYNC=1 harness/install-user.sh` once to install it) — it
-watches the PR event-driven via that extension instead of hand-rolled
-polling.
+Launch one cheap native intake subagent with `$PR` set to the target PR, in the
+background, with an addressable name such as `pr-intake-$PR`. In Claude, use
+the plugin's `pr-intake` agent. In Codex, launch a fresh built-in default
+subagent at low effort and give it the complete instructions from
+`../../agents/pr-intake.md`; do not depend on a globally registered custom
+agent. Translate the named Claude tools in that file to the host's native
+spawn, messaging, process, and cancellation tools, and use
+`CODEX_EXEC_MODEL` instead of Claude's `EXEC_MODEL` for fix workers. Do not
+poll CI or review comments yourself from this session.
+
+The intake subagent needs the `gh-pr-monitor` extension. Install it directly
+with `gh extension install aanojima/gh-pr-monitor` when missing. It watches the
+PR event-driven instead of hand-rolled polling.
+
+When intake dispatches implementation or repair work, it uses exactly one
+implementation worker. The worker assignment contains only the event or
+finding, explicit allowed paths, acceptance criteria, smallest relevant focused
+checks, literal `TEST_LOOP_CAP=<value>`, and the resolved fix-worker model.
+Claude uses the plugin-bundled worker, Codex uses its built-in worker with the
+literal `CODEX_EXEC_MODEL=<value>`, and optional OpenCode uses its bundled
+repo-local worker. Workers may edit only supplied paths and may not delegate,
+redesign, commit, push, publish, open a PR, freeze, verify, review, or run
+advisories; they run the supplied focused checks and return terminal. Repairs
+return to that worker when healthy. After terminality, intake owns candidate
+freeze, dedicated verification, identity recheck, advisories, and commit/push.
+For worker routes, a verifier command failure or mandatory post-verifier
+package identity mismatch invalidates verification and returns to the same
+single implementation worker within `TEST_LOOP_CAP`; after that worker returns
+terminal, intake refreezes and dispatches a fresh verifier.
+
+Non-writing DIRECT actions stay inline. A DIRECT repository edit uses the
+documented trivial host-write exception, then follows the shared core: freeze
+the complete diff, run the authoritative command once through exactly one
+dedicated read-only verifier, confirm the frozen identity, and run the visible
+nonblocking Ponytail/CodeRabbit advisories before committing or pushing. Review
+and advisories start only after the authoritative command succeeds and the
+frozen package identity is unchanged. It does not spawn a second implementation
+worker. A verifier command failure or mandatory post-verifier package identity
+mismatch invalidates verification;
+either DIRECT failure returns to the same sole host writer under the
+documented exception within `TEST_LOOP_CAP`, then refreezes and dispatches a
+fresh verifier. Never spawn an implementation worker solely for DIRECT
+recovery.
 
 ## 2 · Let it route
 
@@ -28,17 +67,37 @@ with `references/pr-classifier.md` and acts per the routing table in
 `agents/pr-intake.md`:
 
 - trivial → fixed inline by the intake agent itself
-- ordinary → dispatched to `$EXEC_MODEL` (sonnet) via a fresh `general-purpose` agent
+- ordinary → dispatched to the current host's executor model via a fresh worker
 - contested (a suggestion that's specific but wrong — contradicts a named
   convention) → replied to on the thread, no dispatch
-- high-risk / security-shaped → escalated read-only to `conformance-reviewer`
-  plus any other `*-reviewer` agent whose description matches the finding,
+- high-risk / security-shaped → escalated to read-only conformance plus each
+  applicable risk lens,
   then messaged to a human — `pr-intake` keeps running and triaging
   everything else while it waits
 
+For every HEAVY/high-risk review lens, Codex/default dispatches a fresh built-in
+`default` subagent at GPT-5.6 Sol/high, never a named or global reviewer type,
+with the complete inspection-only lens assignment, and passes the exact review
+cap from `../../harness/loops.env`. Claude may use the plugin-bundled reviewer
+agents. Before any blocking reviewer is dispatched, intake rechecks the current
+host identity and freezes the complete current PR candidate under the existing
+shared freeze/verifier contract. A successful `verified_identity_by_host` entry
+for the exact host, frozen package identity, and authoritative command is reused
+without rerunning the same command on identical bytes. An absent or stale entry
+requires exactly one dedicated read-only verifier; command success and unchanged
+host and package identities are required before the mapping is updated and
+review starts. Repair, refreeze, reverification, and push each refresh the
+mapping; a changed identity invalidates it until verification succeeds again.
+Every reviewer receives exactly these semantic inputs: the original user
+request or authoritative specification, the approved plan, and the frozen
+diff. Never include verifier output or attestation, the verified-identity
+mapping, the finding ledger, or repair provenance. Reviewers inspect only their
+three inputs; they never edit or run tests, builds, linters, validators, or
+other verification commands.
+
 ## 3 · Check in, don't babysit
 
-`pr-intake` keeps running and messages you (`SendMessage(to: "main", ...)`)
+The intake subagent keeps running and messages the parent session
 whenever it needs something — a `HEAVY`/high-risk decision, or its final
 report at merge/close/cap/timeout. Don't poll it on a schedule; you'll hear
 from it. It has no other way to reach a human, so treat an incoming message
