@@ -66,6 +66,11 @@ resolved through repository exploration.
 │   ├── execute.md                → /software-factory:execute (Claude Code)
 │   └── setup.md                  → /software-factory:setup
 ├── agents/                       Claude plugin explorers + verifier + reviewers
+│   └── bulk-reader.md            cheap Haiku worker for bulk-read delegation
+├── hooks/
+│   ├── hooks.json                PreToolUse: block bulk reads over the line threshold
+│   └── scripts/                  check-file-size.sh (Read), check-bash-read.sh (Bash)
+├── skills/bulk-read/SKILL.md     route a blocked bulk read to the cheap worker
 ├── skills/route/
 │   ├── SKILL.md                  the route skill / routing methodology
 │   └── classifier.md             Stage-1 triage prompt (JSON out)
