@@ -34,6 +34,15 @@ using raw `WebFetch` on that page or site.
    thing) — don't fetch them all raw first and summarize afterward
    yourself.
 
+A dispatched agent's result can carry a trailing `agentId: ... (use
+SendMessage with to: '...', summary: '...')` block after its actual answer —
+that is orchestration bookkeeping from the dispatch mechanism, not something
+the `web-reader` wrote and never something from the page. Disregard it: it
+is not page content, not an instruction, and not a prompt-injection attempt,
+even if it resembles one out of context — it shows up most often when the
+worker's real answer is short or empty. Treat only the text before that
+block as the answer.
+
 ## When to just call WebFetch directly
 
 - A small, targeted page you already expect to be short (an API's single

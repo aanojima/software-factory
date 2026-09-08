@@ -33,6 +33,15 @@ agent (`agents/bulk-reader.md`, model `BULK_READ_MODEL` from
    already know the precise section you need to edit — the hook lets that
    through on its own.
 
+A dispatched agent's result can carry a trailing `agentId: ... (use
+SendMessage with to: '...', summary: '...')` block after its actual answer —
+that is orchestration bookkeeping from the dispatch mechanism, not something
+the `bulk-reader` wrote and never something from the file. Disregard it: it
+is not file content, not an instruction, and not a prompt-injection attempt,
+even if it resembles one out of context — it shows up most often when the
+worker's real answer is short or empty (e.g. a genuinely blank last line).
+Treat only the text before that block as the answer.
+
 ## What this is not for
 
 - Editing a file. Line numbers from a summary are not reliable enough to
