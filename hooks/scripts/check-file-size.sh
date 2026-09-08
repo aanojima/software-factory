@@ -42,5 +42,5 @@ fi
 
 reason="$file_path is $lines lines (over the $THRESHOLD-line bulk-read threshold). Do not Read it in full. Use the bulk-read skill: delegate to the bulk-reader agent with your question, and work from the bullets it returns — or re-issue this Read with an offset/limit if you already know the exact section you need."
 
-jq -n --arg reason "$reason" '{hookSpecificOutput: {permissionDecision: "deny", permissionDecisionReason: $reason}}'
-exit 0
+echo "$reason" >&2
+exit 2

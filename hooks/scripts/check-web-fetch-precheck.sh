@@ -55,5 +55,5 @@ fi
 
 reason="$url is $size_note — over the $BYTES_THRESHOLD-byte bulk-fetch threshold. Do not WebFetch it in full. Use the web-fetch skill: delegate to the web-reader agent with your question, and work from the bullets it returns."
 
-jq -n --arg reason "$reason" '{hookSpecificOutput: {permissionDecision: "deny", permissionDecisionReason: $reason}}'
-exit 0
+echo "$reason" >&2
+exit 2
