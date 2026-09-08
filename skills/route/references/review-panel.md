@@ -27,8 +27,9 @@ invocation commands.
 Launch reviewers as native subagents of the current host. The names below are
 lenses, not required globally registered agent types. Claude may use the
 matching agents bundled with the plugin. Codex uses a fresh built-in `default`
-subagent at GPT-5.6 Sol/high for each lens, never a named or global reviewer
-type, and passes the complete inspection-only assignment below. Reviewers
+subagent for each lens, resolving `CODEX_REVIEW_MODEL` and
+`CODEX_REVIEW_EFFORT` from `../../harness/loops.env`, never a named or global
+reviewer type, and passes the complete inspection-only assignment below. Reviewers
 inspect only the original user request or authoritative specification, the approved plan, and the frozen diff; they never edit or run tests, builds,
 linters, validators, or other verification commands. An external CLI bridge is reserved for an explicitly requested
 mixed Claude + Codex review; native failure never selects it as a fallback.

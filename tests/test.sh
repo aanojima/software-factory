@@ -23,7 +23,12 @@ python3 -m json.tool "$ROOT/skills/pr-watch/schemas/classify.schema.json" >/dev/
 
 # Host-native review is delivered by the plugin; the CLI bridge is explicit mixed mode.
 grep -qF 'In Codex' "$ROOT/skills/route/SKILL.md"
-grep -qF 'use GPT-6 Astra at high effort' "$ROOT/skills/route/SKILL.md"
+grep -qF 'CODEX_PLAN_CRITIC_MODEL' "$ROOT/skills/route/SKILL.md"
+grep -qF 'CODEX_PLAN_CRITIC_EFFORT' "$ROOT/skills/route/SKILL.md"
+if grep -qF 'GPT-6 Astra at high effort' "$ROOT/skills/route/SKILL.md"; then
+  echo "route must resolve plan critic settings from loops.env" >&2
+  exit 1
+fi
 grep -qF 'Read `classifier.md` next to this `SKILL.md`' "$ROOT/skills/route/SKILL.md"
 grep -qF 'only when the user explicitly requests a mixed Claude + Codex review' \
   "$ROOT/skills/route/SKILL.md"
@@ -35,6 +40,91 @@ grep -qF '../../harness/loops.env' "$ROOT/skills/route/SKILL.md"
 grep -qF '../../harness/loops.env' "$ROOT/skills/implement-spec/SKILL.md"
 grep -qF '../../harness/loops.env' "$ROOT/skills/stage-ticket/SKILL.md"
 grep -qF '../../harness/loops.env' "$ROOT/skills/pr-watch/SKILL.md"
+for codex_role_key in \
+  CODEX_EXPLORER_MODEL CODEX_EXPLORER_EFFORT \
+  CODEX_PLAN_CRITIC_MODEL CODEX_PLAN_CRITIC_EFFORT \
+  CODEX_EXEC_MODEL CODEX_EXEC_EFFORT \
+  CODEX_VERIFIER_MODEL CODEX_VERIFIER_EFFORT \
+  CODEX_REVIEW_MODEL CODEX_REVIEW_EFFORT \
+  CODEX_PONYTAIL_MODEL CODEX_PONYTAIL_EFFORT \
+  CODEX_PR_INTAKE_MODEL CODEX_PR_INTAKE_EFFORT; do
+  grep -qE "^${codex_role_key}=[^[:space:]]+" "$ROOT/harness/loops.env"
+done
+for plan_critic_doc in \
+  "$ROOT/skills/route/SKILL.md" \
+  "$ROOT/skills/implement-spec/SKILL.md" \
+  "$ROOT/skills/stage-ticket/SKILL.md"; do
+  grep -qF 'CODEX_PLAN_CRITIC_MODEL' "$plan_critic_doc"
+  grep -qF 'CODEX_PLAN_CRITIC_EFFORT' "$plan_critic_doc"
+  if grep -qF 'GPT-6 Astra at high effort' "$plan_critic_doc"; then
+    echo "plan critic settings must resolve from loops.env: $plan_critic_doc" >&2
+    exit 1
+  fi
+done
+for audit_workflow_doc in \
+  "$ROOT/skills/route/SKILL.md" \
+  "$ROOT/skills/route/references/implement-and-verify.md" \
+  "$ROOT/skills/implement-spec/SKILL.md" \
+  "$ROOT/skills/stage-ticket/SKILL.md" \
+  "$ROOT/skills/pr-watch/SKILL.md" \
+  "$ROOT/agents/pr-intake.md"; do
+  grep -qF 'subagent-start' "$audit_workflow_doc"
+  grep -qF 'subagent-terminal' "$audit_workflow_doc"
+  grep -qF 'subagent-roster' "$audit_workflow_doc"
+done
+grep -qF 'subagents.json' "$ROOT/skills/route/references/agent-audit.md"
+grep -qF 'subagents.json' "$ROOT/skills/implement-spec/references/artifacts.md"
+grep -qF 'subagents.json' "$ROOT/README.md"
+grep -qF 'not a runtime attestation from the model service' \
+  "$ROOT/skills/route/references/agent-audit.md"
+agent_audit_text="$(tr -s '[:space:]' ' ' < "$ROOT/skills/route/references/agent-audit.md")"
+grep -qF 'After the current owner observes an attempt complete, fail, be cancelled, or time out' \
+  <<<"$agent_audit_text"
+grep -qF 'abruptly or its terminality is otherwise unobservable' <<<"$agent_audit_text"
+grep -qF 'leave `status` and `terminal_at` null' <<<"$agent_audit_text"
+grep -qF 'requested built-in `agent_type` (`explorer`, `worker`, or `default`)' \
+  "$ROOT/skills/route/references/agent-audit.md"
+grep -qF '| Ponytail advisory | `default` with the `ponytail:ponytail-review` skill' \
+  "$ROOT/skills/route/references/agent-audit.md"
+grep -qF 'The parent `pr-watch` host records the Codex intake spawn.' \
+  "$ROOT/agents/pr-intake.md"
+pr_watch_audit_text="$(tr -s '[:space:]' ' ' < "$ROOT/skills/pr-watch/SKILL.md")"
+grep -qF 'send the running intake one immediate audit-identity handoff containing the exact' \
+  <<<"$pr_watch_audit_text"
+grep -qF 'The initial Codex assignment must tell intake to wait for this handoff before starting its monitor.' \
+  <<<"$pr_watch_audit_text"
+grep -qF 'If the parent explicitly cancels or interrupts intake, or observes a launch/runtime failure before the handoff, the parent terminalizes the receipt' \
+  <<<"$pr_watch_audit_text"
+grep -qF 'every observed completion/failure/cancellation/timeout with `subagent-terminal`' \
+  <<<"$pr_watch_audit_text"
+grep -qF 'abrupt or unobservable runtime loss remains visibly pending' \
+  <<<"$pr_watch_audit_text"
+if grep -qF 'at low effort' "$ROOT/skills/pr-watch/SKILL.md"; then
+  echo "pr-watch must use CODEX_PR_INTAKE_EFFORT as its normative value" >&2
+  exit 1
+fi
+pr_intake_audit_text="$(tr -s '[:space:]' ' ' < "$ROOT/agents/pr-intake.md")"
+grep -qF 'wait for one immediate audit-identity handoff from the parent' \
+  <<<"$pr_intake_audit_text"
+grep -qF 'intake owns terminalizing that existing receipt immediately before its terminal roster/report' \
+  <<<"$pr_intake_audit_text"
+grep -qF 'the parent terminalizes the receipt when native terminality is confirmed' \
+  <<<"$pr_intake_audit_text"
+grep -qF 'every observed completion/failure/cancellation/timeout' <<<"$pr_intake_audit_text"
+grep -qF 'abrupt or unobservable runtime loss remains visibly pending' \
+  <<<"$pr_intake_audit_text"
+if grep -qF 'After the Codex intake spawn returns' "$ROOT/agents/pr-intake.md"; then
+  echo "PR intake must not record its own parent launch receipt" >&2
+  exit 1
+fi
+implement_spec_audit_text="$(tr -s '[:space:]' ' ' < "$ROOT/skills/implement-spec/SKILL.md")"
+grep -qF 'If the skill is unavailable, preserve the visible `SKIPPED` result and create no dispatch receipt.' \
+  <<<"$implement_spec_audit_text"
+if grep -qF 'terminalize it even when the advisory is skipped or fails' \
+  "$ROOT/skills/implement-spec/SKILL.md"; then
+  echo "skipped Ponytail advisories must not receive terminal receipts" >&2
+  exit 1
+fi
 grep -qF 'implementation-worker' "$ROOT/skills/route/SKILL.md"
 grep -qF 'implementation-worker' "$ROOT/skills/implement-spec/SKILL.md"
 [[ -f "$ROOT/agents/verification-agent.md" ]]
@@ -87,7 +177,12 @@ for reviewer_doc in \
   "$ROOT/skills/pr-watch/SKILL.md" \
   "$ROOT/agents/pr-intake.md"; do
   grep -qF '`default`' "$reviewer_doc"
-  grep -qF 'GPT-5.6 Sol/high' "$reviewer_doc"
+  grep -qF 'CODEX_REVIEW_MODEL' "$reviewer_doc"
+  grep -qF 'CODEX_REVIEW_EFFORT' "$reviewer_doc"
+  if grep -qF 'GPT-5.6 Sol/high' "$reviewer_doc"; then
+    echo "reviewer settings must resolve from loops.env: $reviewer_doc" >&2
+    exit 1
+  fi
 done
 grep -qF 'never a named or global reviewer type' "$ROOT/skills/route/SKILL.md"
 grep -qF 'never edit or run' "$ROOT/skills/route/references/review-panel.md"
@@ -100,8 +195,15 @@ grep -qF 'only writer for an implementation or repair turn' \
 grep -qF 'permission:' "$ROOT/adapters/opencode/agents/implementation-worker.md"
 grep -qF 'implementation-worker' "$ROOT/adapters/opencode/commands/route.md"
 grep -qF 'In Codex' "$ROOT/skills/implement-spec/SKILL.md"
-grep -qF 'use GPT-6 Astra at high effort' \
+grep -qF 'CODEX_PLAN_CRITIC_MODEL' \
   < <(tr -s '[:space:]' ' ' < "$ROOT/skills/implement-spec/SKILL.md")
+grep -qF 'CODEX_PLAN_CRITIC_EFFORT' \
+  < <(tr -s '[:space:]' ' ' < "$ROOT/skills/implement-spec/SKILL.md")
+if grep -qF 'GPT-6 Astra at high effort' \
+  < <(tr -s '[:space:]' ' ' < "$ROOT/skills/implement-spec/SKILL.md"); then
+  echo "implement-spec must resolve plan critic settings from loops.env" >&2
+  exit 1
+fi
 grep -qF 'Review is inspection, not verification.' \
   "$ROOT/skills/implement-spec/references/review-contract.md"
 grep -qF 'original user request or authoritative specification' \
@@ -296,6 +398,64 @@ if python3 "$ROOT/skills/implement-spec/scripts/run_state.py" set "$RUN" --write
   echo "writer reassignment should have failed" >&2
   exit 1
 fi
+
+# Native subagent receipts use the same helper in an audit-only directory.
+# This path deliberately has no run.json so route and PR-watch can share it.
+AUDIT_DIR="$TMP/audit-only"
+EMPTY_AUDIT_DIR="$TMP/missing-audit"
+EMPTY_ROSTER="$(python3 "$ROOT/skills/implement-spec/scripts/run_state.py" \
+  subagent-roster "$EMPTY_AUDIT_DIR")"
+[[ "$(grep -c '^|' <<<"$EMPTY_ROSTER")" -eq 2 ]]
+grep -qF '| Role | Agent type | Model | Effort | Native/session ID | Attempt | Started | Terminal | Status |' \
+  <<<"$EMPTY_ROSTER"
+[[ ! -e "$EMPTY_AUDIT_DIR" ]]
+python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-start \
+  "$AUDIT_DIR" --role explorer --agent-type explorer \
+  --model gpt-5.6-luna --reasoning-effort low --agent-id native-1 \
+  --attempt 1 >/dev/null
+[[ -f "$AUDIT_DIR/subagents.json" && ! -f "$AUDIT_DIR/run.json" ]]
+jq -e '.subagents | length == 1 and .[0].agent_id == "native-1" and .[0].attempt == 1 and .[0].agent_type == "explorer" and .[0].reasoning_effort == "low" and (.[0] | has("effort") | not) and .[0].status == null and .[0].terminal_at == null and (.[] | has("started_at"))' \
+  "$AUDIT_DIR/subagents.json" >/dev/null
+PENDING_ROSTER="$(python3 "$ROOT/skills/implement-spec/scripts/run_state.py" \
+  subagent-roster "$AUDIT_DIR")"
+grep -qF '| pending | pending |' <<<"$PENDING_ROSTER"
+if python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-start \
+  "$AUDIT_DIR" --role explorer --agent-type explorer \
+  --model gpt-5.6-luna --reasoning-effort low --agent-id native-1 \
+  --attempt 1 >/dev/null 2>&1; then
+  echo "duplicate native subagent identity should have failed" >&2
+  exit 1
+fi
+if python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-terminal \
+  "$AUDIT_DIR" --agent-id missing --attempt 1 --status failed \
+  >/dev/null 2>&1; then
+  echo "terminalization without a matching start should have failed" >&2
+  exit 1
+fi
+python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-terminal \
+  "$AUDIT_DIR" --agent-id native-1 --attempt 1 --status completed >/dev/null
+attempt_number=2
+for receipt_status in completed failed cancelled timed_out; do
+  python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-start \
+    "$AUDIT_DIR" --role worker --agent-type worker \
+    --model gpt-5.6-luna --reasoning-effort max --agent-id native-1 \
+    --attempt "$attempt_number" >/dev/null
+  python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-terminal \
+    "$AUDIT_DIR" --agent-id native-1 --attempt "$attempt_number" \
+    --status "$receipt_status" >/dev/null
+  attempt_number=$((attempt_number + 1))
+done
+if python3 "$ROOT/skills/implement-spec/scripts/run_state.py" subagent-terminal \
+  "$AUDIT_DIR" --agent-id native-1 --attempt 1 --status failed \
+  >/dev/null 2>&1; then
+  echo "re-terminalization should have failed" >&2
+  exit 1
+fi
+ROSTER="$("$ROOT/skills/implement-spec/scripts/run_state.py" subagent-roster "$AUDIT_DIR")"
+grep -qF '| Role | Agent type | Model | Effort | Native/session ID | Attempt | Started | Terminal | Status |' <<<"$ROSTER"
+grep -qF '| explorer | explorer | gpt-5.6-luna | low | native-1 | 1 |' <<<"$ROSTER"
+grep -qF '| worker | worker | gpt-5.6-luna | max | native-1 |' <<<"$ROSTER"
+grep -qF 'not a runtime attestation from the model service' <<<"$ROSTER"
 
 HIGH_RUN="$(python3 "$ROOT/skills/implement-spec/scripts/run_state.py" init --repo "$REPO" --spec spec.md --run-id high-risk)"
 python3 "$ROOT/skills/implement-spec/scripts/run_state.py" transition "$HIGH_RUN" readiness >/dev/null
@@ -848,10 +1008,11 @@ sandbox_mode = "read-only"
 EOF
 cp "$ROOT/skills/implement-spec/SKILL.md" "$TARGET/.agents/skills/implement-spec/SKILL.md"
 mkdir -p "$TARGET/.agents/skills/implement-spec/references"
-cp "$ROOT/skills/implement-spec/references/artifacts.md" \
-  "$TARGET/.agents/skills/implement-spec/references/artifacts.md"
-ARTIFACT_HASH="$(shasum -a 256 "$TARGET/.agents/skills/implement-spec/references/artifacts.md" | awk '{print $1}')"
-grep -qF ".agents/skills/implement-spec/references/artifacts.md	$ARTIFACT_HASH	" \
+cp "$ROOT/skills/implement-spec/references/exploration-contract.md" \
+  "$TARGET/.agents/skills/implement-spec/references/exploration-contract.md"
+EXPLORATION_CONTRACT_HASH="$(shasum -a 256 \
+  "$TARGET/.agents/skills/implement-spec/references/exploration-contract.md" | awk '{print $1}')"
+grep -qF ".agents/skills/implement-spec/references/exploration-contract.md	$EXPLORATION_CONTRACT_HASH	" \
   "$ROOT/harness/legacy-managed.sha256"
 printf 'user-added\n' > "$TARGET/.agents/skills/implement-spec/references/user-added.md"
 cat > "$TARGET/.opencode/agents/goal-explorer.md" <<'EOF'
@@ -890,14 +1051,14 @@ fi
 grep -qF 'preserving legacy Codex assets until Codex plugin installation is confirmed' \
   "$TMP/codex-migration-deferred.log"
 [[ -f "$TARGET/.codex/agents/goal-explorer.toml" ]]
-[[ -f "$TARGET/.agents/skills/implement-spec/references/artifacts.md" ]]
+[[ -f "$TARGET/.agents/skills/implement-spec/references/exploration-contract.md" ]]
 [[ -f "$TARGET/.opencode/agents/goal-explorer.md" ]]
 [[ -f "$TARGET/.claude/.agentic-harness-version" ]]
 SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED=1 SOFTWARE_FACTORY_HOME="$ROOT" \
   "$ROOT/harness/init.sh" update "$TARGET" >/dev/null
 [[ ! -e "$TARGET/.codex/prompts/execute.md" ]]
 [[ ! -e "$TARGET/.codex/agents/goal-explorer.toml" ]]
-[[ -f "$TARGET/.agents/skills/implement-spec/references/artifacts.md" ]]
+[[ -f "$TARGET/.agents/skills/implement-spec/references/exploration-contract.md" ]]
 [[ -f "$TARGET/.agents/skills/implement-spec/references/user-added.md" ]]
 [[ -f "$TARGET/.opencode/agents/goal-explorer.md" ]]
 [[ -f "$TARGET/.claude/.agentic-harness-version" ]]
@@ -949,7 +1110,7 @@ jq -e '.extraKnownMarketplaces["agentic-harness"].source.repo == "aanojima/agent
 SOFTWARE_FACTORY_CODEX_PLUGIN_CONFIRMED=1 SOFTWARE_FACTORY_HOME="$ROOT" \
   "$ROOT/harness/init.sh" update --opencode "$TARGET" >/dev/null
 [[ -f "$TARGET/.agents/skills/implement-spec/SKILL.md" ]]
-[[ -f "$TARGET/.agents/skills/implement-spec/references/artifacts.md" ]]
+[[ -f "$TARGET/.agents/skills/implement-spec/references/exploration-contract.md" ]]
 [[ -f "$TARGET/.agents/skills/implement-spec/references/user-added.md" ]]
 [[ -f "$TARGET/.opencode/commands/route.md" ]]
 [[ -f "$TARGET/.opencode/agents/implementation-worker.md" ]]
