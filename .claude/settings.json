@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "software-factory": {
+      "source": {
+        "source": "github",
+        "repo": "aanojima/software-factory",
+        "ref": "main"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "software-factory@software-factory": true
+  }
+}
