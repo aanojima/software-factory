@@ -520,12 +520,24 @@ existing run. Local state is structured as:
 ├── implementation-plan.md
 ├── validation.json
 ├── reviews/
+├── subagents.json
 └── final-summary.md
 ```
 
 The launcher does not orchestrate individual phases. Claude Code, Codex, or
 OpenCode remains the host orchestrator. Plugin users do not need the terminal
 launcher or a source checkout after installation.
+
+Codex-native dispatch receipts live in the single `subagents.json` file. The
+host records the returned native/session ID immediately after spawn, records
+one terminal status (`completed`, `failed`, `cancelled`, or `timed_out`) for
+each observed terminal outcome, and includes `subagent-roster` output in the
+terminal report. The roster proves
+requested dispatch parameters, not a runtime attestation from the model
+service. Role model and reasoning-effort values come from the plugin-relative
+`harness/loops.env`. Observed terminal outcomes belong to the current owner;
+abrupt or unobservable runtime loss remains visibly pending until a host
+confirms terminality.
 
 ## Before the first unattended run
 

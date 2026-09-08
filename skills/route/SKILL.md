@@ -19,6 +19,12 @@ to this `SKILL.md`. Pass the exact relevant cap and model values read from that
 file in the assignment; do not pass a target-repository path or ask a
 subagent to discover plugin configuration.
 
+For Codex-native dispatches, follow the recording mechanics in
+`references/agent-audit.md`: run `subagent-start` with the returned native ID
+immediately after spawn, run `subagent-terminal` for every outcome, and
+include `subagent-roster` output in the final user-visible report. Use an
+explicit audit directory for the task.
+
 If the task explicitly asks to implement an existing authoritative specification,
 load and follow the `implement-spec` skill instead of generating or reinterpreting
 requirements. Preserve the spec path as the goal contract.
@@ -62,15 +68,16 @@ know yet stay `-`, outcome starts `pending`):
   something already handles this), delegate exploration to a native read-only
   explorer first rather than guessing. Draft a short plan (one-liner for T1, plan mode
   for T2), then dispatch exactly one implementation worker with the complete
-  assignment and the resolved `EXEC_MODEL`/`CODEX_EXEC_MODEL` and
-  `TEST_LOOP_CAP` values before following
+  assignment and the resolved `EXEC_MODEL`/`CODEX_EXEC_MODEL`, the matching
+  reasoning effort, and `TEST_LOOP_CAP` values before following
   `references/implement-and-verify.md`'s core + its T1/STANDARD gate.
 - **HEAVY** — Human gates are in force. Delegate exploration to a native read-only explorer.
   Grill the task to a crisp spec, plan at high effort, then ask a fresh,
   read-only native subagent to review the plan against the original user
   request or authoritative specification and exploration evidence. In Codex
-  use GPT-6 Astra at high effort; in Claude use
-  a high-effort native plan critic. A plan review returns approval or concrete
+  resolve `CODEX_PLAN_CRITIC_MODEL` and `CODEX_PLAN_CRITIC_EFFORT` from
+  `../../harness/loops.env`; in Claude use a high-effort native plan critic. A
+  plan review returns approval or concrete
   blockers and does not require an implementation diff. It inspects only the
   supplied artifacts and does not run verification commands. Honor
   `PLAN_LOOP_CAP_T2`, then **stop for human approval**. Only then dispatch
@@ -87,8 +94,9 @@ launch failure must stop or retry within the existing cap; it must not silently
 switch providers.
 
 Claude may use the named agents bundled with this plugin. Codex uses its
-built-in `explorer` for research and a fresh built-in `default` subagent at
-GPT-5.6 Sol/high for each review lens, never a named or global reviewer type.
+built-in `explorer` for research and a fresh built-in `default` subagent for
+each review lens; resolve `CODEX_REVIEW_MODEL` and `CODEX_REVIEW_EFFORT` from
+`../../harness/loops.env`, never a named or global reviewer type.
 Give each reviewer the complete inspection-only lens assignment with exactly these semantic inputs: the original user request or authoritative specification, the approved plan, and the frozen diff. Reviewers must inspect
 only those inputs; never edit or run tests, builds, linters, validators, or
 other verification commands.
@@ -96,7 +104,8 @@ other verification commands.
 Implementation, verification, and repair turns have one writer plus one final
 verifier. Claude dispatches the plugin-bundled `implementation-worker`; Codex
 dispatches its built-in worker subagent with the complete assignment and the
-literal `CODEX_EXEC_MODEL` value from `../../harness/loops.env`; OpenCode, when
+literal `CODEX_EXEC_MODEL` and `CODEX_EXEC_EFFORT` values from
+`../../harness/loops.env`; OpenCode, when
 enabled, dispatches the bundled repo-local
 `.opencode/agents/implementation-worker.md`. The assignment must list the
 allowed paths, approved plan, acceptance criteria, smallest relevant focused
@@ -115,7 +124,8 @@ including its immutable base and any untracked files, and supplies the exact
 authoritative final verification command, including integration and acceptance
 checks, to exactly one verifier. Claude uses the bundled `verification-agent`;
 Codex uses one fresh built-in `default` subagent with the literal
-`CODEX_EXEC_MODEL` value, never a named or global Codex role; OpenCode uses its
+`CODEX_VERIFIER_MODEL` and `CODEX_VERIFIER_EFFORT` values, never a named or
+global Codex role; OpenCode uses its
 bundled repo-local `.opencode/agents/verification-agent.md`. The assignment
 includes the frozen package identity, `cwd`, exact command, acceptance
 criteria, and `TEST_LOOP_CAP=<value>`. The verifier is read-only, runs that
@@ -130,6 +140,11 @@ documented DIRECT exception within `TEST_LOOP_CAP`, then refreeze and dispatch
 a fresh verifier; never spawn an implementation worker solely for DIRECT
 recovery. Review starts only after authoritative verification passes: the
 command succeeded and the frozen package identity is unchanged.
+
+When the route reaches a terminal result, render the explicit task audit
+directory with `subagent-roster` and include that compact Markdown table in the
+final report. The receipts show requested dispatch parameters, not a runtime
+attestation from the model service.
 - **RALPH** — Write `tasks/prd.md` plus one spec file per unit in
   `tasks/todo/`, then hand off to the bundled capped loop at
   `../../harness/ralph.sh`, resolved from this skill directory. Do not

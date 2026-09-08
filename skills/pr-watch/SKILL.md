@@ -10,6 +10,14 @@ launching intake or a reviewer. Pass the exact `PR_WATCH_LOOP_CAP`,
 `PR_WATCH_TIMEOUT_MIN`, `PR_WATCH_POLL_INTERVAL_SEC`, and model values relevant
 to each assignment; do not assume the target repository contains this checkout.
 
+For Codex-native receipt mechanics, follow `../route/references/agent-audit.md`.
+Use `.agent-runs/pr-watch/$PR` as the explicit `AUDIT_DIR`; record every
+returned native ID immediately after spawn with `subagent-start`, terminalize
+every observed completion/failure/cancellation/timeout with
+`subagent-terminal`, and include `subagent-roster` output in the terminal
+report. An abrupt or unobservable runtime loss remains visibly pending until a
+later host confirms terminality; do not fabricate an outcome.
+
 Treat the current host session as the requester, not the watcher. The point
 is to keep an expensive session out of a polling loop — launch the intake
 agent and stop.
@@ -19,12 +27,26 @@ agent and stop.
 Launch one cheap native intake subagent with `$PR` set to the target PR, in the
 background, with an addressable name such as `pr-intake-$PR`. In Claude, use
 the plugin's `pr-intake` agent. In Codex, launch a fresh built-in default
-subagent at low effort and give it the complete instructions from
+subagent using `CODEX_PR_INTAKE_MODEL` and `CODEX_PR_INTAKE_EFFORT` and give it
+the complete instructions from
 `../../agents/pr-intake.md`; do not depend on a globally registered custom
 agent. Translate the named Claude tools in that file to the host's native
 spawn, messaging, process, and cancellation tools, and use
 `CODEX_EXEC_MODEL` instead of Claude's `EXEC_MODEL` for fix workers. Do not
 poll CI or review comments yourself from this session.
+
+Immediately after the intake spawn returns, record its returned native/session
+ID with `subagent-start`, then send the running intake one immediate
+audit-identity handoff containing the exact `AUDIT_DIR`, returned
+native/session ID, and attempt number. The initial Codex assignment must tell
+intake to wait for this handoff before starting its monitor. After the handoff,
+intake owns terminalizing that existing receipt immediately before its
+terminal roster/report for normal completion, cap, self-managed timeout, or
+failure. If the parent explicitly cancels or interrupts intake, or observes a
+launch/runtime failure before the handoff, the parent terminalizes the receipt
+when native terminality is confirmed; if terminality cannot be confirmed, keep
+the receipt honestly pending until a later host confirms it. Do not fabricate
+an outcome for an abrupt or unobservable runtime loss.
 
 The intake subagent needs the `gh-pr-monitor` extension. Install it directly
 with `gh extension install aanojima/gh-pr-monitor` when missing. It watches the
@@ -35,7 +57,8 @@ implementation worker. The worker assignment contains only the event or
 finding, explicit allowed paths, acceptance criteria, smallest relevant focused
 checks, literal `TEST_LOOP_CAP=<value>`, and the resolved fix-worker model.
 Claude uses the plugin-bundled worker, Codex uses its built-in worker with the
-literal `CODEX_EXEC_MODEL=<value>`, and optional OpenCode uses its bundled
+literal `CODEX_EXEC_MODEL=<value>` and `CODEX_EXEC_EFFORT=<value>`, and optional
+OpenCode uses its bundled
 repo-local worker. Workers may edit only supplied paths and may not delegate,
 redesign, commit, push, publish, open a PR, freeze, verify, review, or run
 advisories; they run the supplied focused checks and return terminal. Repairs
@@ -76,10 +99,12 @@ with `references/pr-classifier.md` and acts per the routing table in
   everything else while it waits
 
 For every HEAVY/high-risk review lens, Codex/default dispatches a fresh built-in
-`default` subagent at GPT-5.6 Sol/high, never a named or global reviewer type,
-with the complete inspection-only lens assignment, and passes the exact review
-cap from `../../harness/loops.env`. Claude may use the plugin-bundled reviewer
-agents. Before any blocking reviewer is dispatched, intake rechecks the current
+`default` subagent, resolving `CODEX_REVIEW_MODEL` and
+`CODEX_REVIEW_EFFORT` from `../../harness/loops.env`, never a named or global
+reviewer type, with the complete inspection-only lens assignment, and passes
+the exact review cap from `../../harness/loops.env`. Claude may use the
+plugin-bundled reviewer agents. Before any blocking reviewer is dispatched,
+intake rechecks the current
 host identity and freezes the complete current PR candidate under the existing
 shared freeze/verifier contract. A successful `verified_identity_by_host` entry
 for the exact host, frozen package identity, and authoritative command is reused
@@ -94,6 +119,11 @@ diff. Never include verifier output or attestation, the verified-identity
 mapping, the finding ledger, or repair provenance. Reviewers inspect only their
 three inputs; they never edit or run tests, builds, linters, validators, or
 other verification commands.
+
+For Codex/default reviewers, resolve `CODEX_REVIEW_MODEL` and
+`CODEX_REVIEW_EFFORT` from `../../harness/loops.env`; record each returned ID
+immediately after spawn and terminalize it after completion, failure,
+cancellation, or timeout using the shared audit commands.
 
 ## 3 · Check in, don't babysit
 
@@ -118,3 +148,7 @@ event history any time.
   the user.
 - A repeated identical CI failure after one fix attempt is a stop condition,
   not permission to retry blindly.
+
+At merge, close, cap, or timeout, include the `subagent-roster` table for
+`.agent-runs/pr-watch/$PR` in the terminal report. It records requested
+dispatch parameters and is not a runtime attestation from the model service.

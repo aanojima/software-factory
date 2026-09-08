@@ -12,10 +12,18 @@ Use one directory per execution:
 ├── decisions.md
 ├── validation.json
 ├── reviews/
+├── subagents.json
 └── final-summary.md
 ```
 
 `run.json` is machine state; Markdown files explain human decisions; JSON gate artifacts follow the bundled schemas. Keep `.agent-runs/` ignored by default. Copy selected final plans into version-controlled documentation only when explicitly requested.
+
+`subagents.json` is the single append-and-update roster for native dispatch
+receipts. Use `run_state.py subagent-start` immediately after a spawn returns,
+`subagent-terminal` for its one terminal outcome, and `subagent-roster` in the
+terminal report. Receipts preserve requested role, agent type, model, effort,
+returned native/session ID, attempt, and timestamps; they do not attest to
+runtime service execution.
 
 Use the state helper to enforce transitions and gates:
 
