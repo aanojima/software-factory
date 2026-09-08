@@ -66,6 +66,16 @@ resolved through repository exploration.
 │   ├── execute.md                → /software-factory:execute (Claude Code)
 │   └── setup.md                  → /software-factory:setup
 ├── agents/                       Claude plugin explorers + verifier + reviewers
+│   ├── bulk-reader.md            cheap Haiku worker for bulk-read delegation
+│   └── web-reader.md             cheap Haiku worker for web-fetch delegation
+├── hooks/
+│   ├── hooks.json                PreToolUse (Read/Bash/WebFetch) + PostToolUse (WebFetch)
+│   └── scripts/                  check-file-size.sh, check-bash-read.sh block bulk
+│                                  reads; check-web-fetch-precheck.sh curls+blocks before
+│                                  the fetch; check-web-fetch-size.sh nudges after, as a
+│                                  backstop for whatever the precheck missed
+├── skills/bulk-read/SKILL.md     route a blocked bulk read to the cheap worker
+├── skills/web-fetch/SKILL.md     route a flagged web fetch to the cheap worker
 ├── skills/route/
 │   ├── SKILL.md                  the route skill / routing methodology
 │   └── classifier.md             Stage-1 triage prompt (JSON out)
