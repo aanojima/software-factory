@@ -9,7 +9,7 @@
       "name": "software-factory",
       "source": "./",
       "description": "Portable implement-spec workflow, native subagents, durable state, guarded loops, routing, and evaluation.",
-      "version": "0.3.5"
+      "version": "0.3.0"
     }
   ]
 }
