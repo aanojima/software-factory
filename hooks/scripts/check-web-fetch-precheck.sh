@@ -12,6 +12,10 @@
 # it allows the WebFetch call through rather than guessing. This precheck is
 # a best-effort catch for the obvious huge cases; check-web-fetch-size.sh
 # (PostToolUse) remains the backstop for whatever slips past it.
+#
+# Hooks fire for subagent tool calls too (the input carries agent_type when
+# the call is coming from inside one), so the web-reader worker itself is
+# exempt — otherwise it could never do the fetch it exists to do.
 set -euo pipefail
 
 BYTES_THRESHOLD=8000
@@ -30,6 +34,9 @@ fi
 command -v curl >/dev/null 2>&1 || exit 0
 
 input="$(cat)"
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+[ "$agent_type" = "web-reader" ] && exit 0
+
 url="$(jq -r '.tool_input.url // empty' <<<"$input")"
 [ -z "$url" ] && exit 0
 

@@ -6,6 +6,10 @@
 # context by the time this runs. Instead it nudges the model toward the
 # web-fetch skill's cheap worker on its *next* fetch, over
 # WEB_FETCH_CHAR_THRESHOLD characters (default 8000, harness/loops.env).
+#
+# Hooks fire for subagent tool calls too (the input carries agent_type when
+# the call is coming from inside one); the web-reader worker itself is
+# exempt from the nudge — it's one-shot and has nowhere to act on it.
 set -euo pipefail
 
 THRESHOLD=8000
@@ -16,6 +20,9 @@ if [ -f "$LOOPS_ENV" ]; then
 fi
 
 input="$(cat)"
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+[ "$agent_type" = "web-reader" ] && exit 0
+
 url="$(jq -r '.tool_input.url // "that URL"' <<<"$input")"
 chars="$(jq -r '
   if (.tool_response|type)=="string" then .tool_response

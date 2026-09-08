@@ -4,6 +4,10 @@
 # Blocks cat/less/more of a single file over BULK_READ_LINE_THRESHOLD lines —
 # these dump the whole file into context just like a full Read does. head and
 # tail are left alone: they already bound their own output.
+#
+# Hooks fire for subagent tool calls too (the input carries agent_type when
+# the call is coming from inside one), so the bulk-reader worker itself is
+# exempt — otherwise it could never do the read it exists to do.
 set -euo pipefail
 
 THRESHOLD=350
@@ -14,6 +18,9 @@ if [ -f "$LOOPS_ENV" ]; then
 fi
 
 input="$(cat)"
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+[ "$agent_type" = "bulk-reader" ] && exit 0
+
 command="$(jq -r '.tool_input.command // empty' <<<"$input")"
 [ -z "$command" ] && exit 0
 

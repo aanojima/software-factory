@@ -5,6 +5,10 @@
 # set in harness/loops.env) so the file's content never enters the host
 # session's context. A targeted read (offset/limit already set) always
 # passes through — the model already knows which section it needs.
+#
+# Hooks fire for subagent tool calls too (the input carries agent_type when
+# the call is coming from inside one), so the bulk-reader worker itself is
+# exempt — otherwise it could never do the read it exists to do.
 set -euo pipefail
 
 THRESHOLD=350
@@ -15,6 +19,9 @@ if [ -f "$LOOPS_ENV" ]; then
 fi
 
 input="$(cat)"
+agent_type="$(jq -r '.agent_type // empty' <<<"$input")"
+[ "$agent_type" = "bulk-reader" ] && exit 0
+
 file_path="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
 offset="$(jq -r '.tool_input.offset // empty' <<<"$input")"
 limit="$(jq -r '.tool_input.limit // empty' <<<"$input")"
