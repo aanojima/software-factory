@@ -69,11 +69,15 @@ resolved through repository exploration.
 │   ├── bulk-reader.md            cheap Haiku worker for bulk-read delegation
 │   └── web-reader.md             cheap Haiku worker for web-fetch delegation
 ├── hooks/
-│   ├── hooks.json                PreToolUse (Read/Bash/WebFetch) + PostToolUse (WebFetch)
+│   ├── hooks.json                PreToolUse (Read/Edit/Write/Bash/WebFetch) +
+│   │                              PostToolUse (Bash/WebFetch)
 │   └── scripts/                  check-file-size.sh, check-bash-read.sh block bulk
-│                                  reads; check-web-fetch-precheck.sh curls+blocks before
-│                                  the fetch; check-web-fetch-size.sh nudges after, as a
-│                                  backstop for whatever the precheck missed
+│                                  reads; check-bash-output.sh nudges after any Bash
+│                                  result over the threshold (catches python/sed/awk
+│                                  reads the verb filter can't); check-protected-write.sh
+│                                  denies writes to tasks/done/, eval/golden.jsonl and
+│                                  test files; check-web-fetch-precheck.sh curls+blocks
+│                                  before the fetch; check-web-fetch-size.sh nudges after
 ├── skills/bulk-read/SKILL.md     route a blocked bulk read to the cheap worker
 ├── skills/web-fetch/SKILL.md     route a flagged web fetch to the cheap worker
 ├── skills/route/
