@@ -29,13 +29,24 @@ do not fabricate an outcome.
 
 ## Loop
 
-Ensure the extension is installed (`gh extension list | grep -q pr-monitor ||
-gh extension install aanojima/gh-pr-monitor`), then open one **persistent**
-`Monitor` (`persistent: true`) on:
+All run files — `state.json`, `log.md`, `monitor.stderr` — live in
+`.agent-runs/pr-watch/$PR/` and nowhere else; never a worktree-root
+`.pr-watch-log.md` or any other name.
+
+Open exactly one **persistent** `Monitor` (`persistent: true`) on the harness
+event script, resolved as `../../harness/pr-events.sh` relative to the
+plugin's `skills/pr-watch/SKILL.md`:
 
 ```
-gh pr-monitor $PR --json --interval $PR_WATCH_POLL_INTERVAL_SEC
+<plugin>/harness/pr-events.sh $PR $PR_WATCH_POLL_INTERVAL_SEC
 ```
+
+That script is the only way you consume PR events: never call `gh pr-monitor`
+yourself, and never poll GitHub on your own between events. It creates the run
+directory, installs the extension if missing, sends stderr to
+`monitor.stderr`, and prints one JSON line per actionable event — nothing on
+an empty tick. If you are ever woken with nothing to act on, the command is
+wrong; fix the command, do not widen `PR_WATCH_POLL_INTERVAL_SEC`.
 
 The parent `pr-watch` host records the Codex intake spawn. Before starting the
 monitor, wait for one immediate audit-identity handoff
@@ -54,17 +65,23 @@ its returned native/session ID immediately and terminalizes that receipt with
 `subagent-terminal` whenever the nested attempt completes, fails, is
 cancelled, or times out.
 
-(`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` — now the poll cadence
-`gh-pr-monitor` uses internally, not a sleep you manage). Each stdout line is
-one JSON event, `{"type":..., "time":..., "data":...}`, covering CI checks
-(`check`), reviews (`review`/`review_deleted`), top-level and inline comments
-*including edits* (`comment`/`inline_comment`,
-`comment_deleted`/`inline_comment_deleted`), review requests
-(`review_request`), mergeable-state changes (`mergeable`), and description
-edits (`description`). `gh-pr-monitor` does its own baseline+diff against
-GitHub, so you no longer track per-item timestamps yourself — including
-CodeRabbit's summary comment, which now arrives as an ordinary `comment`
-event whether it's a first post or an in-place edit. Track `escalations`,
+(`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` is the cadence the
+script polls GitHub at, not a sleep you manage.) Each stdout line is one
+JSON event, `{"type":..., "time":..., "data":...}`:
+
+- `check` — one CI check finished with a failing conclusion.
+- `ci_done` — every check on the head is terminal; `data.conclusion` is
+  `success`/`failure`, `data.failed` names the losers. Green CI is this one
+  line, never one per job.
+- `review` — new or updated review.
+- `comment` / `inline_comment` — new *or edited* top-level / diff comment.
+  CodeRabbit's in-place summary edits arrive here as ordinary comments.
+- `mergeable` — a real mergeable-state change (flaps through `UNKNOWN` are
+  dropped upstream).
+- `description` — PR body edited.
+
+In-progress check transitions, individual successful checks, deletions, and
+review requests are filtered out before they can reach you. Track `escalations`,
 `started_at`, which events are `awaiting_decision`, and
 `verified_identity_by_host` in `.agent-runs/pr-watch/$PR/state.json`. That
 mapping binds each rechecked host identity to its last successful frozen
@@ -74,10 +91,12 @@ React to each event as its notification arrives. There's no sleep/poll
 cadence to manage yourself and so no backoff to reason about either: a
 pending human decision costs you nothing while you wait, since you keep
 receiving and triaging every other event on the PR in the meantime at full
-speed — `gh-pr-monitor` paces its own GitHub polling, and the Monitor only
-interrupts your turn when something on the PR actually changed.
+speed — `pr-events.sh` paces its own GitHub polling, and the Monitor only
+interrupts your turn when something actionable on the PR changed. Between
+events you are idle at zero cost; do not run your own `gh pr view`/`gh pr
+checks` polls to "check in".
 
-1. Classify each event with `../skills/pr-watch/references/pr-classifier.md` → `{route, tier, risk, why}`. A `comment_deleted`/`inline_comment_deleted`, a `mergeable` event with nothing broken, or a `description` edit with no actionable ask are almost always DIRECT/log-only — no dispatch needed.
+1. Classify each event with `../skills/pr-watch/references/pr-classifier.md` → `{route, tier, risk, why}`. A `ci_done` with `success`, a `mergeable` event with nothing broken, or a `description` edit with no actionable ask are DIRECT/log-only — no dispatch needed.
 2. Act on the classification:
    - `DIRECT` (tier T0, risk low): keep non-writing actions inline — rerun a known-flaky check (`gh run rerun --failed`) or post a one-line acknowledging reply. DIRECT is the narrowest route, not the default: a repository edit qualifies only when it is a single-file, mechanical change with no behaviour or interface effect — a typo, a formatting/lint fix, a comment or doc wording fix — and needs no judgment about *how* to fix it. Anything that adds/removes/renames a symbol, changes a condition, a return value, a config value, a dependency, a test, or touches more than one file is STANDARD at minimum, however small the diff looks. If you are unsure whether an edit is trivial, it is not; reclassify rather than self-authorize the write. A repository edit, including a typo/lint fix, uses the documented DIRECT host-write exception and then follows the shared core: freeze the complete diff, dispatch exactly one dedicated read-only verifier to run the authoritative command once, confirm the frozen identity, and run the visible nonblocking Ponytail/CodeRabbit advisories before commit/push. Review and advisories start only after the authoritative command succeeds and the frozen package identity is unchanged. A verifier command failure or mandatory post-verifier package identity mismatch invalidates verification and returns to the same sole host writer under the DIRECT exception within `TEST_LOOP_CAP`; then refreeze and dispatch a fresh verifier. Never spawn an implementation worker solely for DIRECT recovery.
    - `STANDARD` (tier T1): spawn exactly one fresh implementation worker. Its assignment contains only the event or finding, explicit allowed paths, acceptance criteria, the smallest relevant focused checks, `HOST_EXEC_MODEL`, and literal `TEST_LOOP_CAP=<value>`. The classifier only saw one event line; the worker sees the real code, so tell it to report distinctly when the suggestion does not apply because it is already handled or contradicts a named repository convention. Intake replies on the thread when needed. The worker may edit only the supplied paths, run the supplied focused checks, and return terminal; it may not redesign, delegate, commit, push, publish, open a PR, freeze the candidate, dispatch verification or review, or run advisories. Repairs return to the same worker when healthy.
@@ -93,7 +112,7 @@ interrupts your turn when something on the PR actually changed.
    - For a rerun: confirm the run is queued/in progress via `gh run view <run_id>`.
    - For a push: confirm `gh pr view $PR --json headRefOid` matches the commit you pushed.
    Log the verified result, not the intended one; if verification fails, log the failure and the corrective action.
-5. Append one line per event to `.agent-runs/pr-watch/$PR/log.md`: timestamp, event, route, action, result.
+5. Append one line per event to `.agent-runs/pr-watch/$PR/log.md` (this exact path, no other): timestamp, event, route, action, result.
 6. After handling each event, check the stop conditions: `PR_WATCH_LOOP_CAP` escalations dispatched, or `PR_WATCH_TIMEOUT_MIN` minutes elapsed since `started_at` (both from `harness/loops.env`). Separately, `gh-pr-monitor` exits on its own once the PR leaves the `OPEN` state (merged or closed), which ends the Monitor and surfaces its exit to you. On any of the three: fetch final state with `gh pr view $PR --json state,mergedAt`, `SendMessage(to: "main", message: "...")` with the summary, `TaskStop` the Monitor if it's still running, then end your run — there's nothing left to watch.
 
 ## Replying on threads

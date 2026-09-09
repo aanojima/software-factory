@@ -23,11 +23,6 @@ LOG="$RUN_DIR/log.md"
 AWAITING="$RUN_DIR/awaiting.md"
 [[ -f "$STATE" ]] || printf '{"escalations":0,"started_epoch":%s}\n' "$(date -u +%s)" > "$STATE"
 
-if ! gh extension list 2>/dev/null | grep -q 'aanojima/gh-pr-monitor'; then
-  echo "→ installing gh extension aanojima/gh-pr-monitor" >&2
-  gh extension install aanojima/gh-pr-monitor
-fi
-
 echo "→ watching PR $PR — synchronous fallback, runs until closed/capped/killed" >&2
 echo "  ponytail: HEAVY events prompt on a tty and log-and-continue off one; no" >&2
 echo "  live push channel exists here, upgrade path is a real notification hook" >&2
@@ -110,7 +105,9 @@ handle_event() {
   esac
 }
 
-gh pr-monitor "$PR" --json --interval "$PR_WATCH_POLL_INTERVAL_SEC" | while IFS= read -r event; do
+# Same filtered event stream pr-intake uses: installs gh-pr-monitor if missing,
+# drops empty ticks / in-progress checks / successes, folds CI into ci_done.
+RUN_DIR="$RUN_DIR" "$SOFTWARE_FACTORY_HOME/harness/pr-events.sh" "$PR" "$PR_WATCH_POLL_INTERVAL_SEC" | while IFS= read -r event; do
   [[ -n "$event" ]] || continue
   handle_event "$event"
 

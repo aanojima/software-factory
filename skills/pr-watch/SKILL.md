@@ -48,9 +48,11 @@ when native terminality is confirmed; if terminality cannot be confirmed, keep
 the receipt honestly pending until a later host confirms it. Do not fabricate
 an outcome for an abrupt or unobservable runtime loss.
 
-The intake subagent needs the `gh-pr-monitor` extension. Install it directly
-with `gh extension install aanojima/gh-pr-monitor` when missing. It watches the
-PR event-driven instead of hand-rolled polling.
+The intake subagent consumes PR events only through `../../harness/pr-events.sh`
+(resolved relative to this `SKILL.md`), which wraps the `gh-pr-monitor`
+extension, installs it when missing, and filters the stream to one JSON line
+per actionable event. It watches the PR event-driven instead of hand-rolled
+polling; an empty tick never wakes intake.
 
 When intake dispatches implementation or repair work, it uses exactly one
 implementation worker. The worker assignment contains only the event or
