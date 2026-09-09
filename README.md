@@ -355,8 +355,10 @@ extension does its own baseline+diff against GitHub and emits one JSON event
 per line for every CI check, review, comment (new or edited), review request,
 mergeable-state change, and description edit; the wrapper then drops the
 noise deterministically (empty ticks, in-progress check transitions,
-mergeable flaps through `UNKNOWN`, deletions, review requests) before a line
-can reach the agent. The Monitor only interrupts `pr-intake`'s turn when
+individual successful checks, mergeable flaps through `UNKNOWN`, deletions,
+review requests) before a line can reach the agent, and folds a whole CI
+run into one synthetic `ci_done` line once every check is terminal — a
+failed check still wakes immediately. The Monitor only interrupts `pr-intake`'s turn when
 something on the PR actually changed — no sleep loop, no backoff to reason
 about, and a pending human decision costs nothing while it waits.
 

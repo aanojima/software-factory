@@ -1826,19 +1826,32 @@ SOFTWARE_FACTORY_HOME="$ROOT" "$ROOT/harness/init.sh" update "$TARGET" >/dev/nul
 echo "all tests passed"
 
 # pr-events.sh is the only event stream pr-intake may Monitor, and it must drop
-# non-actionable events deterministically (no empty-tick or in-progress wakes).
+# non-actionable events deterministically: no empty-tick or in-progress wakes,
+# successful checks roll up into exactly one ci_done line per head commit.
 grep -qF 'harness/pr-events.sh' "$ROOT/agents/pr-intake.md"
 grep -qF 'harness/pr-events.sh' "$ROOT/skills/pr-watch/SKILL.md"
+grep -qF 'ci_done' "$ROOT/agents/pr-intake.md"
+grep -qF 'ci_done' "$ROOT/skills/pr-watch/references/pr-classifier.md"
 if grep -qE '^gh pr-monitor ' "$ROOT/agents/pr-intake.md"; then
   echo "pr-intake must Monitor harness/pr-events.sh, not gh pr-monitor directly" >&2
   exit 1
 fi
-pr_events_filter="$(sed -n '/jq --unbuffered/,$p' "$ROOT/harness/pr-events.sh" | sed 's/^.*| jq/jq/')"
+PR_EVENTS_TMP="$TMP/pr-events"; mkdir -p "$PR_EVENTS_TMP"
+cat > "$PR_EVENTS_TMP/rollup.sh" <<EOF2
+n=\$(cat "$PR_EVENTS_TMP/ncall" 2>/dev/null || echo 0); n=\$((n+1)); echo \$n > "$PR_EVENTS_TMP/ncall"
+if [ \$n -le 1 ]; then
+  echo '{"headRefOid":"abc","statusCheckRollup":[{"name":"a","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"b","status":"IN_PROGRESS","conclusion":null}]}'
+else
+  echo '{"headRefOid":"abc","statusCheckRollup":[{"name":"a","status":"COMPLETED","conclusion":"SUCCESS"},{"name":"b","status":"COMPLETED","conclusion":"SUCCESS"}]}'
+fi
+EOF2
 pr_events_out="$(printf '%s\n' \
-  '{"type":"check","time":"t","data":{"status":"IN_PROGRESS","conclusion":null}}' \
-  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"FAILURE"}}' \
-  '{"type":"check","time":"t","data":{"state":"PENDING"}}' \
-  '{"type":"check","time":"t","data":{"state":"SUCCESS"}}' \
+  '{"type":"check","time":"t","data":{"status":"IN_PROGRESS","conclusion":null,"name":"a"}}' \
+  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"SUCCESS","name":"a"}}' \
+  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"SUCCESS","name":"b"}}' \
+  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"SUCCESS","name":"b"}}' \
+  '{"type":"check","time":"t","data":{"state":"PENDING","context":"s"}}' \
+  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"FAILURE","name":"c"}}' \
   '{"type":"mergeable","time":"t","data":{"from":{"state":"BLOCKED"},"to":{"state":"UNKNOWN"}}}' \
   '{"type":"mergeable","time":"t","data":{"from":{"state":"CLEAN"},"to":{"state":"DIRTY"}}}' \
   '{"type":"review_request","time":"t","data":{}}' \
@@ -1847,12 +1860,15 @@ pr_events_out="$(printf '%s\n' \
   '{"type":"comment","time":"t","data":{"id":2}}' \
   '{"type":"review","time":"t","data":{"id":3}}' \
   '{"type":"description","time":"t","data":{}}' \
-  | bash -c "$pr_events_filter")"
+  | RUN_DIR="$PR_EVENTS_TMP" PR_EVENTS_FILTER_ONLY=1 \
+    PR_EVENTS_ROLLUP_CMD="bash $PR_EVENTS_TMP/rollup.sh" \
+    bash "$ROOT/harness/pr-events.sh" 1)"
 [[ "$(wc -l <<<"$pr_events_out")" == 7 ]]
+[[ "$(grep -c '"type":"ci_done"' <<<"$pr_events_out")" == 1 ]]
+grep -qF '"conclusion":"success"' <<<"$pr_events_out"
 grep -qF '"conclusion":"FAILURE"' <<<"$pr_events_out"
-grep -qF '"state":"SUCCESS"' <<<"$pr_events_out"
 grep -qF '"to":{"state":"DIRTY"}' <<<"$pr_events_out"
-if grep -qE 'IN_PROGRESS|PENDING|UNKNOWN|review_request|comment_deleted' <<<"$pr_events_out"; then
-  echo "pr-events.sh must drop in-progress checks, UNKNOWN flaps, deletions, review requests" >&2
+if grep -qE 'IN_PROGRESS|PENDING|UNKNOWN|review_request|comment_deleted|"conclusion":"SUCCESS"' <<<"$pr_events_out"; then
+  echo "pr-events.sh must drop in-progress checks, individual successes, UNKNOWN flaps, deletions, review requests" >&2
   exit 1
 fi

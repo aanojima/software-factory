@@ -47,8 +47,13 @@ That is the only Monitor you open, and that script is the only way you may
 consume `gh-pr-monitor`. It installs the extension if missing, sends stderr
 to `.agent-runs/pr-watch/$PR/monitor.stderr`, and passes through exactly
 one JSON line per actionable event; an empty tick, an in-progress check
-transition, a mergeable flap through `UNKNOWN`, a deletion, and a review
-request never reach your turn. Do not call `gh pr-monitor` yourself, wrap it
+transition, an individual *successful* check, a mergeable flap through
+`UNKNOWN`, a deletion, and a review request never reach your turn. CI
+arrives as at most two kinds of line: a `check` event only for a failed
+terminal check (immediately), and one synthetic `ci_done` event per head
+commit — `{"type":"ci_done","data":{"sha","conclusion":"success"|"failure",
+"total","failed":[names]}}` — the first time every check in the rollup is
+terminal. Green CI is therefore a single wake, not one per job. Do not call `gh pr-monitor` yourself, wrap it
 in a `while true; sleep` loop, use `--once` on a cadence, merge stderr
 (`2>&1`), or add a heartbeat line. If you are ever woken with nothing to act
 on, the command is wrong — fix the command, do not widen
@@ -74,7 +79,7 @@ cancelled, or times out.
 (`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` — the poll cadence
 `gh-pr-monitor` uses internally, not a sleep you manage). Each stdout line is
 one JSON event, `{"type":..., "time":..., "data":...}`, covering CI checks
-(`check`), reviews (`review`/`review_deleted`), top-level and inline comments
+(`check` for a failure, `ci_done` for the whole run), reviews (`review`/`review_deleted`), top-level and inline comments
 *including edits* (`comment`/`inline_comment`,
 `comment_deleted`/`inline_comment_deleted`), review requests
 (`review_request`), mergeable-state changes (`mergeable`), and description
