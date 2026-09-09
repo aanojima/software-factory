@@ -4,8 +4,14 @@ emit a routing decision.
 
 ## by event type
 
-- `check` — a CI run changed state. Classify by the failure itself (see
-  route below).
+- `check` — one CI check finished with a failing conclusion (successes and
+  in-progress transitions are filtered out upstream). Classify by the failure
+  itself (see route below).
+- `ci_done` — every check on the current head is terminal. `data.conclusion`
+  is `success` or `failure` with `data.failed` naming the losers. `success` →
+  DIRECT/log-only (the PR is green; nothing to fix). `failure` → the failing
+  `check` events already carried the detail; treat this as log-only unless a
+  named failure was never seen as its own event.
 - `review` — a new/updated review. `APPROVED`/`COMMENTED` with nothing
   actionable → DIRECT/log-only. `CHANGES_REQUESTED` → classify by the
   review's content like a comment.
