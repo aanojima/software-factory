@@ -27,9 +27,13 @@ markdown fences, no prose:
 
 ## route — pick exactly one
 
-- DIRECT   Flaky/known-infra CI failure (a rerun fixes it), a typo/lint
-           failure, or a purely acknowledging reply ("thanks, done"). Handle
-           inline, no dispatch needed.
+- DIRECT   Flaky/known-infra CI failure (a rerun fixes it), a purely
+           acknowledging reply ("thanks, done"), or a single-file mechanical
+           edit with no behaviour/interface effect (typo, formatting, lint,
+           comment/doc wording). Anything that changes a symbol, a
+           condition, a value, a dependency, a test, or more than one file
+           is NOT DIRECT even if the diff is one line — use STANDARD. When
+           in doubt, it is not DIRECT. Handle inline, no dispatch needed.
 - STANDARD Real test/build failure or a substantive review comment that maps
            to an ordinary code change, no unresolved ambiguity.
 - HEAVY    Failure or comment touches auth, security, payments, money, data
