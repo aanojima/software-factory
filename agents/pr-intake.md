@@ -34,8 +34,19 @@ gh extension install aanojima/gh-pr-monitor`), then open one **persistent**
 `Monitor` (`persistent: true`) on:
 
 ```
-gh pr-monitor $PR --json --interval $PR_WATCH_POLL_INTERVAL_SEC
+gh pr-monitor $PR --json --interval $PR_WATCH_POLL_INTERVAL_SEC \
+  2>>.agent-runs/pr-watch/$PR/monitor.stderr | grep --line-buffered '^{'
 ```
+
+That is the only Monitor you open, and its stdout must carry **events only**.
+`gh pr-monitor --json` is silent on a tick where nothing changed — it sleeps,
+diffs, and prints nothing — so an empty tick costs no wake at all. Keep it
+that way: never merge stderr into the stream (`2>&1`), never wrap the
+extension in your own `while true; sleep` loop or call it with `--once` on a
+cadence, and never add a heartbeat/"still watching" line; the `grep '^{'`
+guard drops any non-JSON line so only real events reach your turn. If you
+find yourself being woken with nothing to act on, the Monitor command is
+wrong — fix the command, do not widen `PR_WATCH_POLL_INTERVAL_SEC`.
 
 The parent `pr-watch` host records the Codex intake spawn. Before starting the
 monitor, wait for one immediate audit-identity handoff
@@ -75,7 +86,9 @@ cadence to manage yourself and so no backoff to reason about either: a
 pending human decision costs you nothing while you wait, since you keep
 receiving and triaging every other event on the PR in the meantime at full
 speed — `gh-pr-monitor` paces its own GitHub polling, and the Monitor only
-interrupts your turn when something on the PR actually changed.
+interrupts your turn when something on the PR actually changed. Between
+events you are idle at zero cost; do not run your own `gh pr view`/`gh pr
+checks` polls to "check in".
 
 1. Classify each event with `../skills/pr-watch/references/pr-classifier.md` → `{route, tier, risk, why}`. A `comment_deleted`/`inline_comment_deleted`, a `mergeable` event with nothing broken, or a `description` edit with no actionable ask are almost always DIRECT/log-only — no dispatch needed.
 2. Act on the classification:
