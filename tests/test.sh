@@ -153,7 +153,6 @@ for identity_recovery_doc in \
   "$ROOT/skills/route/references/implement-and-verify.md" \
   "$ROOT/skills/implement-spec/SKILL.md" \
   "$ROOT/skills/stage-ticket/SKILL.md" \
-  "$ROOT/commands/implement-spec.md" \
   "$ROOT/adapters/opencode/commands/implement-spec.md" \
   "$ROOT/adapters/opencode/commands/route.md" \
   "$ROOT/adapters/opencode/commands/stage-ticket.md" \
@@ -188,8 +187,8 @@ grep -qF 'never a named or global reviewer type' "$ROOT/skills/route/SKILL.md"
 grep -qF 'never edit or run' "$ROOT/skills/route/references/review-panel.md"
 grep -qF 'tests, builds,' "$ROOT/skills/route/references/review-panel.md"
 grep -qF 'linters, validators' "$ROOT/skills/route/references/review-panel.md"
-grep -qF 'plugin-bundled implementation-worker for implementation and repairs' \
-  "$ROOT/commands/implement-spec.md"
+implement_spec_skill_text="$(tr -s '[:space:]' ' ' < "$ROOT/skills/implement-spec/SKILL.md")"
+grep -qF 'Claude uses the plugin-bundled `implementation-worker`' <<<"$implement_spec_skill_text"
 grep -qF 'only writer for an implementation or repair turn' \
   "$ROOT/agents/implementation-worker.md"
 grep -qF 'permission:' "$ROOT/adapters/opencode/agents/implementation-worker.md"
@@ -334,7 +333,6 @@ fi
 for no_host_fallback_doc in \
   "$ROOT/AGENTS.md" \
   "$ROOT/CLAUDE.md" \
-  "$ROOT/commands/implement-spec.md" \
   "$ROOT/skills/route/SKILL.md" \
   "$ROOT/skills/implement-spec/SKILL.md" \
   "$ROOT/skills/stage-ticket/SKILL.md" \
@@ -1872,3 +1870,13 @@ if grep -qE 'IN_PROGRESS|PENDING|UNKNOWN|review_request|comment_deleted|"conclus
   echo "pr-events.sh must drop in-progress checks, individual successes, UNKNOWN flaps, deletions, review requests" >&2
   exit 1
 fi
+
+# Claude Code surfaces skills/ directly in the / picker; a commands/ wrapper that
+# only says "use the X skill" would list the same entry twice. Only commands
+# that add behaviour (execute, setup) may live there.
+for dup in stage-ticket implement-spec implement-ticket pr-watch; do
+  if [[ -e "$ROOT/commands/$dup.md" ]]; then
+    echo "commands/$dup.md duplicates skills/$dup in the Claude Code picker" >&2
+    exit 1
+  fi
+done
