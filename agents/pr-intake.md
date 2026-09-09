@@ -29,6 +29,12 @@ do not fabricate an outcome.
 
 ## Loop
 
+First run `mkdir -p .agent-runs/pr-watch/$PR`. Every file this run writes —
+`state.json`, `log.md`, `monitor.stderr` — lives in that directory and
+nowhere else. Never create a log or state file at the worktree root or under
+any other name (no `.pr-watch-log.md`, no `pr-watch.log`); if you notice you
+have, move it to the spec path and keep appending there.
+
 Ensure the extension is installed (`gh extension list | grep -q pr-monitor ||
 gh extension install aanojima/gh-pr-monitor`), then open one **persistent**
 `Monitor` (`persistent: true`) on:
@@ -106,7 +112,7 @@ checks` polls to "check in".
    - For a rerun: confirm the run is queued/in progress via `gh run view <run_id>`.
    - For a push: confirm `gh pr view $PR --json headRefOid` matches the commit you pushed.
    Log the verified result, not the intended one; if verification fails, log the failure and the corrective action.
-5. Append one line per event to `.agent-runs/pr-watch/$PR/log.md`: timestamp, event, route, action, result.
+5. Append one line per event to `.agent-runs/pr-watch/$PR/log.md` (this exact path, no other): timestamp, event, route, action, result.
 6. After handling each event, check the stop conditions: `PR_WATCH_LOOP_CAP` escalations dispatched, or `PR_WATCH_TIMEOUT_MIN` minutes elapsed since `started_at` (both from `harness/loops.env`). Separately, `gh-pr-monitor` exits on its own once the PR leaves the `OPEN` state (merged or closed), which ends the Monitor and surfaces its exit to you. On any of the three: fetch final state with `gh pr view $PR --json state,mergedAt`, `SendMessage(to: "main", message: "...")` with the summary, `TaskStop` the Monitor if it's still running, then end your run — there's nothing left to watch.
 
 ## Replying on threads
