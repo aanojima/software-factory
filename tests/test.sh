@@ -1824,3 +1824,35 @@ SOFTWARE_FACTORY_HOME="$ROOT" "$ROOT/harness/init.sh" update "$TARGET" >/dev/nul
 [[ ! -e "$TARGET/.codex/agents" ]]
 
 echo "all tests passed"
+
+# pr-events.sh is the only event stream pr-intake may Monitor, and it must drop
+# non-actionable events deterministically (no empty-tick or in-progress wakes).
+grep -qF 'harness/pr-events.sh' "$ROOT/agents/pr-intake.md"
+grep -qF 'harness/pr-events.sh' "$ROOT/skills/pr-watch/SKILL.md"
+if grep -qE '^gh pr-monitor ' "$ROOT/agents/pr-intake.md"; then
+  echo "pr-intake must Monitor harness/pr-events.sh, not gh pr-monitor directly" >&2
+  exit 1
+fi
+pr_events_filter="$(sed -n '/jq --unbuffered/,$p' "$ROOT/harness/pr-events.sh" | sed 's/^.*| jq/jq/')"
+pr_events_out="$(printf '%s\n' \
+  '{"type":"check","time":"t","data":{"status":"IN_PROGRESS","conclusion":null}}' \
+  '{"type":"check","time":"t","data":{"status":"COMPLETED","conclusion":"FAILURE"}}' \
+  '{"type":"check","time":"t","data":{"state":"PENDING"}}' \
+  '{"type":"check","time":"t","data":{"state":"SUCCESS"}}' \
+  '{"type":"mergeable","time":"t","data":{"from":{"state":"BLOCKED"},"to":{"state":"UNKNOWN"}}}' \
+  '{"type":"mergeable","time":"t","data":{"from":{"state":"CLEAN"},"to":{"state":"DIRTY"}}}' \
+  '{"type":"review_request","time":"t","data":{}}' \
+  '{"type":"comment_deleted","time":"t","data":{}}' \
+  '{"type":"inline_comment","time":"t","data":{"id":1}}' \
+  '{"type":"comment","time":"t","data":{"id":2}}' \
+  '{"type":"review","time":"t","data":{"id":3}}' \
+  '{"type":"description","time":"t","data":{}}' \
+  | bash -c "$pr_events_filter")"
+[[ "$(wc -l <<<"$pr_events_out")" == 7 ]]
+grep -qF '"conclusion":"FAILURE"' <<<"$pr_events_out"
+grep -qF '"state":"SUCCESS"' <<<"$pr_events_out"
+grep -qF '"to":{"state":"DIRTY"}' <<<"$pr_events_out"
+if grep -qE 'IN_PROGRESS|PENDING|UNKNOWN|review_request|comment_deleted' <<<"$pr_events_out"; then
+  echo "pr-events.sh must drop in-progress checks, UNKNOWN flaps, deletions, review requests" >&2
+  exit 1
+fi

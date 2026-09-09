@@ -350,10 +350,13 @@ session that spawned it, then keeps triaging everything else on the PR
 while it waits for a reply.
 
 It doesn't poll GitHub itself either: it opens one persistent `Monitor` on
-the `gh-pr-monitor` extension, which does its own baseline+diff against
-GitHub and emits one JSON event per line for every CI check, review,
-comment (new or edited), review request, mergeable-state change, and
-description edit. The Monitor only interrupts `pr-intake`'s turn when
+`harness/pr-events.sh`, which wraps the `gh-pr-monitor` extension. The
+extension does its own baseline+diff against GitHub and emits one JSON event
+per line for every CI check, review, comment (new or edited), review request,
+mergeable-state change, and description edit; the wrapper then drops the
+noise deterministically (empty ticks, in-progress check transitions,
+mergeable flaps through `UNKNOWN`, deletions, review requests) before a line
+can reach the agent. The Monitor only interrupts `pr-intake`'s turn when
 something on the PR actually changed — no sleep loop, no backoff to reason
 about, and a pending human decision costs nothing while it waits.
 

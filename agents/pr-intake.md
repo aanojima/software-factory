@@ -35,24 +35,24 @@ nowhere else. Never create a log or state file at the worktree root or under
 any other name (no `.pr-watch-log.md`, no `pr-watch.log`); if you notice you
 have, move it to the spec path and keep appending there.
 
-Ensure the extension is installed (`gh extension list | grep -q pr-monitor ||
-gh extension install aanojima/gh-pr-monitor`), then open one **persistent**
-`Monitor` (`persistent: true`) on:
+Open one **persistent** `Monitor` (`persistent: true`) on the harness event
+script, resolved as `../../harness/pr-events.sh` relative to the plugin's
+`skills/pr-watch/SKILL.md`:
 
 ```
-gh pr-monitor $PR --json --interval $PR_WATCH_POLL_INTERVAL_SEC \
-  2>>.agent-runs/pr-watch/$PR/monitor.stderr | grep --line-buffered '^{'
+<plugin>/harness/pr-events.sh $PR $PR_WATCH_POLL_INTERVAL_SEC
 ```
 
-That is the only Monitor you open, and its stdout must carry **events only**.
-`gh pr-monitor --json` is silent on a tick where nothing changed — it sleeps,
-diffs, and prints nothing — so an empty tick costs no wake at all. Keep it
-that way: never merge stderr into the stream (`2>&1`), never wrap the
-extension in your own `while true; sleep` loop or call it with `--once` on a
-cadence, and never add a heartbeat/"still watching" line; the `grep '^{'`
-guard drops any non-JSON line so only real events reach your turn. If you
-find yourself being woken with nothing to act on, the Monitor command is
-wrong — fix the command, do not widen `PR_WATCH_POLL_INTERVAL_SEC`.
+That is the only Monitor you open, and that script is the only way you may
+consume `gh-pr-monitor`. It installs the extension if missing, sends stderr
+to `.agent-runs/pr-watch/$PR/monitor.stderr`, and passes through exactly
+one JSON line per actionable event; an empty tick, an in-progress check
+transition, a mergeable flap through `UNKNOWN`, a deletion, and a review
+request never reach your turn. Do not call `gh pr-monitor` yourself, wrap it
+in a `while true; sleep` loop, use `--once` on a cadence, merge stderr
+(`2>&1`), or add a heartbeat line. If you are ever woken with nothing to act
+on, the command is wrong — fix the command, do not widen
+`PR_WATCH_POLL_INTERVAL_SEC`.
 
 The parent `pr-watch` host records the Codex intake spawn. Before starting the
 monitor, wait for one immediate audit-identity handoff
@@ -71,7 +71,7 @@ its returned native/session ID immediately and terminalizes that receipt with
 `subagent-terminal` whenever the nested attempt completes, fails, is
 cancelled, or times out.
 
-(`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` — now the poll cadence
+(`PR_WATCH_POLL_INTERVAL_SEC` from `harness/loops.env` — the poll cadence
 `gh-pr-monitor` uses internally, not a sleep you manage). Each stdout line is
 one JSON event, `{"type":..., "time":..., "data":...}`, covering CI checks
 (`check`), reviews (`review`/`review_deleted`), top-level and inline comments
@@ -91,8 +91,8 @@ React to each event as its notification arrives. There's no sleep/poll
 cadence to manage yourself and so no backoff to reason about either: a
 pending human decision costs you nothing while you wait, since you keep
 receiving and triaging every other event on the PR in the meantime at full
-speed — `gh-pr-monitor` paces its own GitHub polling, and the Monitor only
-interrupts your turn when something on the PR actually changed. Between
+speed — `pr-events.sh` paces its own GitHub polling, and the Monitor only
+interrupts your turn when something actionable on the PR changed. Between
 events you are idle at zero cost; do not run your own `gh pr view`/`gh pr
 checks` polls to "check in".
 
